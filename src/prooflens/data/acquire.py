@@ -24,6 +24,7 @@ from prooflens.data.schema import ManifestRecord
 from prooflens.errors import DatasetAcquisitionError, DatasetPolicyError, UserInputError
 
 SID_SET_PINNED_REVISION = "c1674903d858c78e04809c1c6f2703627ac1a621"
+ACQUISITION_METADATA_NAME = "acquisition.json"
 
 
 @dataclass(frozen=True)
@@ -67,12 +68,15 @@ class SidAcquisitionConfig:
             raise UserInputError("SID acquisition revision must be recorded")
         if result.per_class < 1:
             raise UserInputError("SID acquisition per_class must be at least 1")
+        images_directory = _safe_relative_path(
+            result.images_directory, "images_directory"
+        )
+        manifest_name = _safe_relative_path(result.manifest_name, "manifest_name")
+        _validate_output_layout(images_directory, manifest_name)
         return replace(
             result,
-            images_directory=_safe_relative_path(
-                result.images_directory, "images_directory"
-            ).as_posix(),
-            manifest_name=_safe_relative_path(result.manifest_name, "manifest_name").as_posix(),
+            images_directory=images_directory.as_posix(),
+            manifest_name=manifest_name.as_posix(),
         )
 
 
@@ -195,7 +199,7 @@ def acquire_sid_subset(
             "observed_dataset_revision": observed_revision,
             "split": resolved.split,
         }
-        _atomic_write_json(staging / "acquisition.json", metadata)
+        _atomic_write_json(staging / ACQUISITION_METADATA_NAME, metadata)
         staging.replace(output_root)
         published = True
         relocated_records = [
@@ -359,8 +363,10 @@ def _json_value(value: Any) -> Any:
     return value
 
 
-def _safe_relative_path(value: str, field: str) -> Path:
-    text = str(value).strip()
+def _safe_relative_path(value: object, field: str) -> Path:
+    if not isinstance(value, str):
+        raise UserInputError(f"{field} must be a string containing a relative path")
+    text = value.strip()
     if not text:
         raise UserInputError(f"{field} must be a non-empty relative path")
     try:
@@ -380,6 +386,29 @@ def _safe_relative_path(value: str, field: str) -> Path:
     ):
         raise UserInputError(f"{field} must be a safe relative path beneath output_root")
     return Path(*windows.parts)
+
+
+def _validate_output_layout(images_directory: Path, manifest_name: Path) -> None:
+    outputs = (
+        ("images_directory", images_directory),
+        ("manifest_name", manifest_name),
+        ("acquisition metadata", Path(ACQUISITION_METADATA_NAME)),
+    )
+    for index, (left_name, left_path) in enumerate(outputs):
+        for right_name, right_path in outputs[index + 1 :]:
+            if _relative_paths_overlap(left_path, right_path):
+                raise UserInputError(
+                    "acquisition output paths overlap: "
+                    f"{left_name}={left_path.as_posix()} and "
+                    f"{right_name}={right_path.as_posix()}"
+                )
+
+
+def _relative_paths_overlap(first: Path, second: Path) -> bool:
+    first_parts = tuple(part.casefold() for part in first.parts)
+    second_parts = tuple(part.casefold() for part in second.parts)
+    common_length = min(len(first_parts), len(second_parts))
+    return first_parts[:common_length] == second_parts[:common_length]
 
 
 def _resolved_write_path(root: Path, relative: str | Path, field: str) -> Path:

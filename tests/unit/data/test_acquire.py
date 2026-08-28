@@ -140,6 +140,42 @@ def test_sid_acquisition_config_rejects_output_paths_that_can_escape_root(
         SidAcquisitionConfig.from_value({field: value})
 
 
+@pytest.mark.parametrize("field", ["images_directory", "manifest_name"])
+@pytest.mark.parametrize(
+    "value",
+    [None, True, 7, 3.5, ["nested"], {"path": "nested"}, Path("nested")],
+)
+def test_sid_acquisition_config_rejects_non_string_output_paths(
+    field: str, value: object
+) -> None:
+    with pytest.raises(UserInputError, match=f"{field}.*string"):
+        SidAcquisitionConfig.from_value({field: value})
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"manifest_name": "acquisition.json"},
+        {"manifest_name": ".\\AcQuIsItIoN.JsOn"},
+        {"images_directory": "acquisition.json"},
+        {"images_directory": "ACQUISITION.JSON"},
+        {"images_directory": "images", "manifest_name": "images/manifest.parquet"},
+        {"images_directory": "IMAGES", "manifest_name": r"images\manifest.parquet"},
+        {
+            "images_directory": "reports/manifest.parquet/images",
+            "manifest_name": "reports/manifest.parquet",
+        },
+        {"images_directory": "acquisition.json/images"},
+        {"manifest_name": "acquisition.json/manifest.parquet"},
+    ],
+)
+def test_sid_acquisition_config_rejects_colliding_output_layouts(
+    overrides: dict[str, str]
+) -> None:
+    with pytest.raises(UserInputError, match="output paths overlap"):
+        SidAcquisitionConfig.from_value(overrides)
+
+
 def test_config_hash_is_deterministic_across_mapping_order() -> None:
     first = {"revision": "abc", "per_class": 2, "split": "train"}
     second = {"split": "train", "per_class": 2, "revision": "abc"}
