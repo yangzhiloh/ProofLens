@@ -123,3 +123,59 @@ No prior commit was amended.
 1. The real 20,000-image SID-Set acquisition was not run because Task 3 tests must remain network-free and the source dataset is large. The injected streaming loader exercises acquisition, RGB persistence, canonical manifest construction, metadata, and underfill behavior with tiny fixtures.
 2. WildFake redistribution rights still require human verification before acquisition or publication, as recorded by `REQUIRES-VERIFICATION`.
 3. Some Hugging Face iterable dataset objects do not expose an observed repository revision. In that case, `observed_dataset_revision` deliberately falls back to the configured pinned revision rather than inventing a value.
+
+## Review fix round 1
+
+### Findings addressed
+
+1. `images_directory` and `manifest_name` now reject empty strings, absolute paths under either POSIX or Windows syntax, anchored or drive-relative Windows forms, and `..` traversal. Every configurable write destination is also resolved and checked with `relative_to()` against its intended staging or output root before use.
+2. Primary manifest validation now rejects null, empty, and whitespace-only `dataset_name` values before approved-source and per-source label validation.
+3. WildFake repository and ModelScope locations plus the manual export instructions are centralized in `data/licences.py`. Both `validate_wildfake_root()` and the real `WildFakeAdapter.scan()` missing-root path use the shared message without creating an acquire-to-adapter import cycle.
+4. Dataset and generator counts now sort by descending count with a lexical secondary key, making audit Markdown byte-identical for equivalent manifests whose input rows differ in order.
+
+### Behavioral RED evidence
+
+The new tests were run against an isolated archive of active repository `HEAD` before the fixes. The archive changed import resolution only and did not modify the working tree.
+
+Command:
+
+```powershell
+git -c safe.directory='C:\Users\Loh Yang Zhi\Documents\Projects\Tiktoky' archive --format=zip --output='.task3-baseline.zip' HEAD src
+Expand-Archive -LiteralPath '.task3-baseline.zip' -DestinationPath '.task3-baseline'
+$env:PYTHONPATH = (Resolve-Path '.task3-baseline\src').Path
+& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest 'tests/unit/data/test_acquire.py::test_sid_acquisition_config_rejects_output_paths_that_can_escape_root' 'tests/unit/data/test_acquire.py::test_primary_policy_rejects_unidentified_dataset_names' 'tests/unit/data/test_adapters.py::test_wildfake_adapter_missing_root_includes_manual_acquisition_guidance' 'tests/unit/data/test_audit.py::test_audit_markdown_is_row_order_invariant_when_counts_tie' -v --basetemp .pytest-tmp-task3-fix-round1-red-baseline
+```
+
+Exact result: `11 failed in 0.87s`. Six path cases did not raise, the null source name was accepted while blank names raised the wrong policy branch, the adapter omitted manual acquisition destinations, and tied-count Markdown changed with row order. Collection and dependencies succeeded.
+
+### Focused GREEN evidence
+
+Command:
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path 'src').Path
+& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest tests/unit/data/test_acquire.py tests/unit/data/test_audit.py tests/unit/data/test_adapters.py -v --basetemp .pytest-tmp-task3-fix-round1-final-focused
+```
+
+Exact result: `37 passed in 0.70s`.
+
+### Full suite and Ruff
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path 'src').Path
+& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest -v --basetemp .pytest-tmp-task3-fix-round1-final-full
+```
+
+Exact result: `42 passed in 0.67s`.
+
+```powershell
+& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m ruff check src tests --no-cache
+```
+
+Exact result: `All checks passed!`
+
+### Fix commit
+
+`e8946e1f66f57be8c365e8eae1169b5d43b58988` `fix: harden dataset acquisition boundaries`
+
+The controller-owned `progress.md` edit and untracked `review-task-3.diff` were preserved and excluded from this commit.
