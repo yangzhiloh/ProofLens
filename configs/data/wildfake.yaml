@@ -1,0 +1,8 @@
+name: wildfake
+root: data/raw/wildfake
+acquisition: manual
+official_repository: https://github.com/hy-zpg/AIGC-Image-Detection-Dataset
+modelscope: https://modelscope.cn/datasets/hy2628982280/WildFake/summary
+allowed_labels: [0, 1]
+generator_labeled: true
+licence_identifier: REQUIRES-VERIFICATION

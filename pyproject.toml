@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "prooflens"
+version = "0.1.0"
+license = { text = "MIT" }
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "torch>=2.5,<3",
+  "torchvision>=0.20,<1",
+  "transformers>=4.46,<6",
+  "datasets>=3,<5",
+  "huggingface-hub>=0.27,<2",
+  "pillow>=11,<13",
+  "numpy>=2,<3",
+  "pandas>=2.2,<3",
+  "pyarrow>=18,<25",
+  "scikit-learn>=1.5,<2",
+  "pydantic>=2.9,<3",
+  "pyyaml>=6,<7",
+  "imagehash>=4.3,<5",
+  "matplotlib>=3.9,<4",
+  "seaborn>=0.13,<1",
+  "safetensors>=0.5,<1",
+  "gradio>=5,<7",
+  "onnx>=1.17,<2",
+  "onnxscript>=0.4,<1",
+  "onnxruntime>=1.20,<2",
+]
+
+[project.optional-dependencies]
+openvino = ["openvino>=2026.0,<2027"]
+dev = ["pytest>=8,<9", "pytest-cov>=6,<8", "ruff>=0.9,<1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -p no:cacheprovider"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

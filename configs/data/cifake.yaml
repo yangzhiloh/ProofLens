@@ -1,0 +1,6 @@
+name: cifake_stress
+root: data/raw/cifake
+stress_only: true
+include_in_primary_training: false
+allowed_labels: [0, 1]
+licence_identifier: MIT
