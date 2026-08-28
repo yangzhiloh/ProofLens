@@ -179,3 +179,55 @@ Exact result: `All checks passed!`
 `e8946e1f66f57be8c365e8eae1169b5d43b58988` `fix: harden dataset acquisition boundaries`
 
 The controller-owned `progress.md` edit and untracked `review-task-3.diff` were preserved and excluded from this commit.
+
+## Review fix round 2
+
+### Findings addressed
+
+1. `images_directory` and `manifest_name` now require actual strings. YAML nulls, booleans, numbers, collections, and path objects are rejected with `UserInputError` before trimming or path normalization.
+2. Acquisition output paths are normalized and validated together before staging. `acquisition.json` is reserved, and equality plus ancestor or descendant overlap among the images directory, manifest, and metadata file is rejected case-insensitively with a deterministic `UserInputError`. The checks cover POSIX and Windows separators.
+
+### Behavioral RED evidence
+
+Command:
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path 'src').Path
+& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest 'tests/unit/data/test_acquire.py::test_sid_acquisition_config_rejects_non_string_output_paths' 'tests/unit/data/test_acquire.py::test_sid_acquisition_config_rejects_colliding_output_layouts' -v --basetemp .pytest-tmp-task3-fix-round2-red
+```
+
+Exact result: `23 failed in 0.65s`. Every new case reached the existing implementation and failed because the non-string or colliding configuration was accepted. Collection and dependencies succeeded.
+
+### Focused GREEN evidence
+
+New edge cases:
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path 'src').Path
+& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest 'tests/unit/data/test_acquire.py::test_sid_acquisition_config_rejects_non_string_output_paths' 'tests/unit/data/test_acquire.py::test_sid_acquisition_config_rejects_colliding_output_layouts' -v --basetemp .pytest-tmp-task3-fix-round2-green
+```
+
+Exact result: `23 passed in 0.59s`.
+
+Complete acquisition test module:
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path 'src').Path
+& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest tests/unit/data/test_acquire.py -q --basetemp .pytest-tmp-task3-fix-round2-focused
+```
+
+Exact result: `43 passed in 0.56s`.
+
+### Ruff
+
+```powershell
+& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m ruff check src tests --no-cache
+```
+
+Exact result: `All checks passed!`
+
+### Fix commit
+
+`13f81f8` `fix: validate acquisition output layout`
+
+The controller-owned `progress.md`, both Task 3 review diff artifacts, and the Task 4 through Task 6 brief files were preserved and excluded from the implementation commit.
