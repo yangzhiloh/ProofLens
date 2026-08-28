@@ -1,4 +1,8 @@
 from dataclasses import dataclass
+from pathlib import Path
+
+WILDFAKE_REPOSITORY_URL = "https://github.com/hy-zpg/AIGC-Image-Detection-Dataset"
+WILDFAKE_MODELSCOPE_URL = "https://modelscope.cn/datasets/hy2628982280/WildFake/summary"
 
 
 @dataclass(frozen=True)
@@ -25,3 +29,12 @@ CIFAKE = DatasetAttribution(
     licence_identifier="MIT",
     attribution="CIFAKE: retain required dataset citations.",
 )
+
+
+def wildfake_manual_acquisition_message(root: Path) -> str:
+    return (
+        f"WildFake export root is missing or empty: {root}. WildFake acquisition is manual. "
+        f"Follow the official repository at {WILDFAKE_REPOSITORY_URL} and obtain the dataset "
+        f"from ModelScope at {WILDFAKE_MODELSCOPE_URL}, then point the configuration root to "
+        "the extracted export."
+    )

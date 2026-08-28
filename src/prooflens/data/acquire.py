@@ -5,8 +5,8 @@ import json
 import shutil
 import tempfile
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-from dataclasses import asdict, dataclass
-from pathlib import Path
+from dataclasses import asdict, dataclass, replace
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 from uuid import uuid4
 
@@ -15,13 +15,14 @@ import yaml
 from PIL import Image
 
 from prooflens.data.adapters.sid_set import SidSetAdapter
-from prooflens.data.licences import SID_SET
+from prooflens.data.licences import (
+    SID_SET,
+    wildfake_manual_acquisition_message,
+)
 from prooflens.data.manifest import build_manifest
 from prooflens.data.schema import ManifestRecord
 from prooflens.errors import DatasetAcquisitionError, DatasetPolicyError, UserInputError
 
-WILDFAKE_REPOSITORY_URL = "https://github.com/hy-zpg/AIGC-Image-Detection-Dataset"
-WILDFAKE_MODELSCOPE_URL = "https://modelscope.cn/datasets/hy2628982280/WildFake/summary"
 SID_SET_PINNED_REVISION = "c1674903d858c78e04809c1c6f2703627ac1a621"
 
 
@@ -66,7 +67,13 @@ class SidAcquisitionConfig:
             raise UserInputError("SID acquisition revision must be recorded")
         if result.per_class < 1:
             raise UserInputError("SID acquisition per_class must be at least 1")
-        return result
+        return replace(
+            result,
+            images_directory=_safe_relative_path(
+                result.images_directory, "images_directory"
+            ).as_posix(),
+            manifest_name=_safe_relative_path(result.manifest_name, "manifest_name").as_posix(),
+        )
 
 
 @dataclass(frozen=True)
@@ -170,7 +177,7 @@ def acquire_sid_subset(
 
         rows_for_adapter = _save_selected_images(selected, resolved, staging)
         records = list(SidSetAdapter(version=resolved.revision).scan_rows(rows_for_adapter))
-        manifest_path = staging / resolved.manifest_name
+        manifest_path = _resolved_write_path(staging, resolved.manifest_name, "manifest_name")
         result = build_manifest([_RecordAdapter(records)], manifest_path, max_corrupt_fraction=0.0)
         if result.valid_count != 2 * resolved.per_class:
             raise DatasetAcquisitionError(
@@ -199,7 +206,7 @@ def acquire_sid_subset(
         ]
         build_manifest(
             [_RecordAdapter(relocated_records)],
-            output_root / resolved.manifest_name,
+            _resolved_write_path(output_root, resolved.manifest_name, "manifest_name"),
             max_corrupt_fraction=0.0,
         )
     except Exception:
@@ -210,7 +217,7 @@ def acquire_sid_subset(
 
     return AcquisitionSummary(
         output_root=output_root,
-        manifest_path=output_root / resolved.manifest_name,
+        manifest_path=_resolved_write_path(output_root, resolved.manifest_name, "manifest_name"),
         counts=counts,
         dataset_revision=resolved.revision,
         observed_dataset_revision=observed_revision,
@@ -224,12 +231,7 @@ def validate_wildfake_root(root: Path) -> Path:
     root = Path(root)
     if root.is_dir() and any(path.is_file() for path in root.rglob("*")):
         return root
-    raise DatasetAcquisitionError(
-        f"WildFake export root is missing or empty: {root}. WildFake acquisition is manual. "
-        f"Follow the official repository at {WILDFAKE_REPOSITORY_URL} and obtain the dataset "
-        f"from ModelScope at {WILDFAKE_MODELSCOPE_URL}, then point the configuration root to "
-        "the extracted export."
-    )
+    raise DatasetAcquisitionError(wildfake_manual_acquisition_message(root))
 
 
 def load_primary_policy(path: Path) -> PrimaryManifestPolicy:
@@ -259,6 +261,11 @@ def validate_primary_manifest(frame: pd.DataFrame, policy: PrimaryManifestPolicy
     missing = required - set(frame.columns)
     if missing:
         raise DatasetPolicyError(f"primary manifest is missing columns: {sorted(missing)}")
+
+    dataset_names = frame["dataset_name"]
+    unidentified = dataset_names.isna() | dataset_names.fillna("").astype(str).str.strip().eq("")
+    if unidentified.any():
+        raise DatasetPolicyError("primary manifest dataset_name values cannot be missing or blank")
 
     approved = {source.name: source for source in policy.sources}
     unapproved = set(frame["dataset_name"].dropna().astype(str)) - set(approved)
@@ -303,12 +310,13 @@ def _save_selected_images(
         image = row.get(config.image_field)
         if not isinstance(image, Image.Image):
             raise DatasetAcquisitionError(f"SID row {image_id} has no decoded PIL image")
-        relative = (
-            Path(config.images_directory)
-            / str(label)
-            / f"{hashlib.sha256(image_id.encode('utf-8')).hexdigest()}.png"
+        relative = Path(str(label)) / (
+            f"{hashlib.sha256(image_id.encode('utf-8')).hexdigest()}.png"
         )
-        destination = staging / relative
+        images_root = _resolved_write_path(
+            staging, config.images_directory, "images_directory"
+        )
+        destination = _resolved_write_path(images_root, relative, "images_directory")
         destination.parent.mkdir(parents=True, exist_ok=True)
         rgb = image.convert("RGB")
         rgb.save(destination, format="PNG")
@@ -349,6 +357,39 @@ def _json_value(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_json_value(item) for item in value]
     return value
+
+
+def _safe_relative_path(value: str, field: str) -> Path:
+    text = str(value).strip()
+    if not text:
+        raise UserInputError(f"{field} must be a non-empty relative path")
+    try:
+        posix = PurePosixPath(text)
+        windows = PureWindowsPath(text)
+    except (OSError, ValueError) as error:
+        raise UserInputError(f"{field} must be a safe relative path") from error
+    if (
+        posix.is_absolute()
+        or windows.is_absolute()
+        or bool(posix.anchor)
+        or bool(windows.anchor)
+        or bool(windows.drive)
+        or ".." in posix.parts
+        or ".." in windows.parts
+        or text in {".", "./", ".\\"}
+    ):
+        raise UserInputError(f"{field} must be a safe relative path beneath output_root")
+    return Path(*windows.parts)
+
+
+def _resolved_write_path(root: Path, relative: str | Path, field: str) -> Path:
+    root = root.resolve()
+    destination = (root / relative).resolve()
+    try:
+        destination.relative_to(root)
+    except ValueError as error:
+        raise UserInputError(f"{field} resolves outside the intended output root") from error
+    return destination
 
 
 def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:

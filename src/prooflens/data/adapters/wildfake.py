@@ -1,7 +1,7 @@
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
-from prooflens.data.licences import WILDFAKE
+from prooflens.data.licences import WILDFAKE, wildfake_manual_acquisition_message
 from prooflens.data.schema import ManifestRecord
 from prooflens.errors import DataIntegrityError
 
@@ -23,7 +23,7 @@ class WildFakeAdapter:
 
     def scan(self) -> Iterator[ManifestRecord]:
         if not self.root.is_dir():
-            raise DataIntegrityError(f"WildFake root is missing: {self.root}. Mount the approved export root.")
+            raise DataIntegrityError(wildfake_manual_acquisition_message(self.root))
         records: list[ManifestRecord] = []
         for directory_name, family in sorted(self.real_directories.items()):
             directory = self._required_directory(directory_name)

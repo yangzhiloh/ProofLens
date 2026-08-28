@@ -146,10 +146,12 @@ def _perfectly_predicts_label(frame: pd.DataFrame, column: str) -> bool:
 
 
 def _string_counts(series: pd.Series) -> dict[str, int]:
-    return {
-        str(key): int(value)
-        for key, value in _observed_strings(series).value_counts().items()
-    }
+    counts = _observed_strings(series).value_counts()
+    ordered = sorted(
+        ((str(key), int(value)) for key, value in counts.items()),
+        key=lambda item: (-item[1], item[0]),
+    )
+    return dict(ordered)
 
 
 def _observed_strings(series: pd.Series) -> pd.Series:

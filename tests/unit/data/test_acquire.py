@@ -122,6 +122,24 @@ def test_acquire_sid_subset_refuses_to_overwrite_existing_root(tmp_path: Path) -
     assert marker.read_text(encoding="utf-8") == "keep"
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("images_directory", "/outside-images"),
+        ("manifest_name", r"C:\outside\manifest.parquet"),
+        ("images_directory", "../outside-images"),
+        ("manifest_name", r"nested\..\..\manifest.parquet"),
+        ("images_directory", ""),
+        ("manifest_name", "   "),
+    ],
+)
+def test_sid_acquisition_config_rejects_output_paths_that_can_escape_root(
+    field: str, value: str
+) -> None:
+    with pytest.raises(UserInputError, match=field):
+        SidAcquisitionConfig.from_value({field: value})
+
+
 def test_config_hash_is_deterministic_across_mapping_order() -> None:
     first = {"revision": "abc", "per_class": 2, "split": "train"}
     second = {"split": "train", "per_class": 2, "revision": "abc"}
@@ -192,6 +210,29 @@ def test_primary_policy_rejects_missing_label_and_too_few_fake_families() -> Non
     )
     with pytest.raises(DataIntegrityError, match="at least 3.*found 2"):
         validate_primary_manifest(two_families, policy)
+
+
+@pytest.mark.parametrize("unidentified_name", [None, "", "   "])
+def test_primary_policy_rejects_unidentified_dataset_names(
+    unidentified_name: str | None,
+) -> None:
+    policy = load_primary_policy(Path("configs/data/primary.yaml"))
+    frame = pd.DataFrame(
+        {
+            "label": [0, 1, 1, 1, 0],
+            "dataset_name": [
+                "sid_set",
+                "wildfake",
+                "wildfake",
+                "wildfake",
+                unidentified_name,
+            ],
+            "generator_family": ["authentic", "flux", "sdxl", "dalle3", "authentic"],
+        }
+    )
+
+    with pytest.raises(DataIntegrityError, match="dataset_name.*missing or blank"):
+        validate_primary_manifest(frame, policy)
 
 
 def test_primary_policy_counts_generator_families_across_approved_sources() -> None:

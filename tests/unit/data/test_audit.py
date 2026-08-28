@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from prooflens.data.audit import audit_manifest, write_audit
+from prooflens.data.audit import audit_manifest, render_audit_markdown, write_audit
 
 
 def _audit_frame() -> pd.DataFrame:
@@ -105,3 +105,24 @@ def test_write_audit_round_trips_json_and_required_markdown_sections(tmp_path: P
         "Perfect label shortcuts",
     ):
         assert heading in markdown
+
+
+def test_audit_markdown_is_row_order_invariant_when_counts_tie() -> None:
+    frame = pd.DataFrame(
+        {
+            "label": [0, 0, 1, 1],
+            "dataset_name": ["zeta", "alpha", "zeta", "alpha"],
+            "generator_family": ["zeta", "alpha", "zeta", "alpha"],
+            "file_format": ["PNG", "JPEG", "JPEG", "PNG"],
+            "width": [100, 200, 300, 400],
+            "height": [50, 100, 150, 200],
+            "content_checksum": ["a", "b", "c", "d"],
+        }
+    )
+
+    forward = audit_manifest(frame)
+    reversed_report = audit_manifest(frame.iloc[::-1].reset_index(drop=True))
+
+    assert forward.dataset_counts == {"alpha": 2, "zeta": 2}
+    assert forward.generator_counts == {"alpha": 2, "zeta": 2}
+    assert render_audit_markdown(forward) == render_audit_markdown(reversed_report)

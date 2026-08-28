@@ -75,6 +75,18 @@ def test_wildfake_adapter_reads_generator_from_hierarchy(wildfake_fixture: Path)
     assert {record.generator_family for record in records if record.label == 1} == {"sdxl"}
 
 
+def test_wildfake_adapter_missing_root_includes_manual_acquisition_guidance(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(DataIntegrityError) as caught:
+        list(WildFakeAdapter(tmp_path / "missing").scan())
+
+    message = str(caught.value)
+    assert "manual" in message.lower()
+    assert "https://github.com/hy-zpg/AIGC-Image-Detection-Dataset" in message
+    assert "https://modelscope.cn/datasets/hy2628982280/WildFake/summary" in message
+
+
 def test_wildfake_adapter_rejects_missing_configured_directory(tmp_path: Path) -> None:
     (tmp_path / "real").mkdir()
     with pytest.raises(DataIntegrityError, match="fake"):
