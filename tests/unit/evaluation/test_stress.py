@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
+from PIL import Image
+
+from prooflens.data.dataset import SourceItem
+from prooflens.errors import MetricPartitionError
 
 
 @pytest.fixture
@@ -66,3 +70,27 @@ def test_stress_predictions_cannot_be_converted_to_primary_candidates(
 
     with pytest.raises(TypeError, match="must be a Candidate"):
         select_best([report])
+
+
+@pytest.mark.parametrize(
+    ("checkpoint_id", "seed"),
+    [("", 17), (" ", 17), ("best", -1), ("best", 1.5), ("best", True)],
+)
+def test_evaluate_stress_rejects_invalid_public_identity_inputs(
+    checkpoint_id: object, seed: object
+) -> None:
+    from prooflens.evaluation.stress import evaluate_stress
+
+    item = SourceItem(
+        image=Image.new("RGB", (4, 3), "red"),
+        label=1,
+        sample_id="sample",
+        dataset_name="fixture",
+        generator_family="generator",
+        source_group_id="group",
+        split="validation",
+        split_group_id="group",
+    )
+
+    with pytest.raises(MetricPartitionError, match="checkpoint_id|seed"):
+        evaluate_stress([item], object(), checkpoint_id=checkpoint_id, seed=seed)  # type: ignore[arg-type]

@@ -21,9 +21,14 @@ class StressTransformSpec:
     parameters: Mapping[str, int | str]
 
     def __post_init__(self) -> None:
-        if self.condition_id not in {definition[0] for definition in _SPEC_DEFINITIONS}:
-            raise UserInputError(f"unknown stress condition {self.condition_id!r}")
-        object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))
+        expected = (
+            _EXPECTED_PARAMETERS.get(self.condition_id)
+            if isinstance(self.condition_id, str)
+            else None
+        )
+        if not isinstance(self.parameters, Mapping) or expected is None or dict(self.parameters) != expected:
+            raise UserInputError("stress transform spec must use a fixed condition definition")
+        object.__setattr__(self, "parameters", MappingProxyType(dict(expected)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +51,7 @@ _SPEC_DEFINITIONS: tuple[tuple[str, dict[str, int | str]], ...] = (
         {"canvas_width": 1080, "canvas_height": 675, "interpolation": "bicubic"},
     ),
 )
+_EXPECTED_PARAMETERS = {condition_id: parameters for condition_id, parameters in _SPEC_DEFINITIONS}
 _STRESS_SPECS = tuple(StressTransformSpec(condition_id, parameters) for condition_id, parameters in _SPEC_DEFINITIONS)
 
 

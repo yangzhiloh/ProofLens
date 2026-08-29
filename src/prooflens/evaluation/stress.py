@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Iterable
+from numbers import Integral
 from pathlib import Path
 from uuid import uuid4
 
@@ -38,6 +39,8 @@ def evaluate_stress(
 ) -> pd.DataFrame:
     """Return one secondary-condition prediction per source image and condition."""
 
+    normalized_checkpoint_id = _nonempty_text(checkpoint_id, "checkpoint_id")
+    normalized_seed = _nonnegative_seed(seed)
     predict_logit = getattr(backend, "predict_logit", None)
     if not callable(predict_logit):
         raise TypeError("stress backend must provide predict_logit")
@@ -51,7 +54,7 @@ def evaluate_stress(
             result = apply_stress_transform(
                 item.image,
                 spec,
-                seed=stable_seed(seed, item.sample_id, spec.condition_id),
+                seed=stable_seed(normalized_seed, item.sample_id, spec.condition_id),
             )
             logit = float(predict_logit(result.image))
             _finite(logit, "stress logit")
@@ -65,8 +68,8 @@ def evaluate_stress(
                     "split": item.split,
                     "generator_family": item.generator_family,
                     "condition_id": spec.condition_id,
-                    "checkpoint_id": checkpoint_id,
-                    "transform_metadata": json.dumps(result.metadata, sort_keys=True),
+                    "checkpoint_id": normalized_checkpoint_id,
+                    "transform_metadata": json.dumps(dict(result.metadata), sort_keys=True),
                 }
             )
     return pd.DataFrame(records, columns=STRESS_PREDICTION_COLUMNS)
@@ -140,3 +143,15 @@ def _validate_stress_predictions(predictions: pd.DataFrame) -> None:
 def _finite(value: float, field: str) -> None:
     if not math.isfinite(value):
         raise MetricPartitionError(f"stress {field} must be finite")
+
+
+def _nonempty_text(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise MetricPartitionError(f"stress {field} must be a nonempty string")
+    return value
+
+
+def _nonnegative_seed(value: object) -> int:
+    if not isinstance(value, Integral) or isinstance(value, bool) or int(value) < 0:
+        raise MetricPartitionError("stress seed must be a nonnegative integer")
+    return int(value)

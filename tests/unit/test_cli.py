@@ -516,3 +516,105 @@ def test_evaluate_stress_command_requires_selection_split_and_output() -> None:
     assert parsed.selection == Path("selection.json")
     assert parsed.split == "test"
     assert parsed.output == Path("stress-output")
+
+
+def test_evaluate_stress_uses_selected_checkpoint_and_writes_split_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prooflens.cli import run_evaluate_stress_cli
+    from prooflens.data.hashing import sha256_file
+    from prooflens.inference import preprocess, torch_backend
+
+    run_dir = tmp_path / "selected-run"
+    run_dir.mkdir()
+    images = []
+    for split, label, color in (
+        ("validation", 0, "red"),
+        ("validation", 1, "blue"),
+        ("test", 0, "green"),
+        ("test", 1, "yellow"),
+    ):
+        path = tmp_path / f"{split}-{label}.png"
+        _write_image(path, color)
+        images.append(
+            {
+                "sample_id": f"{split}-{label}",
+                "path": str(path),
+                "label": label,
+                "dataset_name": "fixture",
+                "dataset_version": "fixture-v1",
+                "generator_family": "real" if label == 0 else "generator",
+                "source_group_id": f"group-{split}-{label}",
+                "original_image_id": f"image-{split}-{label}",
+                "width": 4,
+                "height": 3,
+                "file_format": "PNG",
+                "licence_identifier": "CC0-1.0",
+                "content_checksum": "",
+                "perceptual_hash": "",
+                "split": split,
+                "split_group_id": f"group-{split}-{label}",
+            }
+        )
+    manifest = tmp_path / "split.parquet"
+    pd.DataFrame(images).to_parquet(manifest, index=False)
+    split_hash = sha256_file(manifest)
+    manifest.with_suffix(".json").write_text(
+        json.dumps({"split_sha256": split_hash}), encoding="utf-8"
+    )
+    (run_dir / "run_metadata.json").write_text(
+        json.dumps({"split_sha256": split_hash}), encoding="utf-8"
+    )
+    (run_dir / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "seed": 17,
+                "data": {"manifest": str(manifest)},
+                "model": {"name": "fixture/model", "stage": "head"},
+                "training": {"epochs": 1, "batch_size": 2},
+                "output_dir": str(run_dir),
+            }
+        ),
+        encoding="utf-8",
+    )
+    selection = tmp_path / "selection.json"
+    selection.write_text(
+        json.dumps(
+            {
+                "checkpoint_id": "selected-run",
+                "run_dir": str(run_dir),
+                "validation_split_hash": split_hash,
+            }
+        ),
+        encoding="utf-8",
+    )
+    requested_checkpoints: list[Path] = []
+
+    class FakeBackend:
+        def predict_logit(self, image: Image.Image) -> float:
+            return float(sum(image.getpixel((0, 0)))) / 1000
+
+    def from_checkpoint(path: Path, **_kwargs: object) -> FakeBackend:
+        requested_checkpoints.append(path)
+        return FakeBackend()
+
+    monkeypatch.setattr(torch_backend.TorchLogitBackend, "from_checkpoint", from_checkpoint)
+    monkeypatch.setattr(preprocess, "create_dinov2_processor", lambda: object())
+
+    output = tmp_path / "stress-output"
+    exit_code = run_evaluate_stress_cli(
+        argparse.Namespace(selection=selection, split="test", output=output)
+    )
+
+    predictions = pd.read_parquet(output / "predictions-stress.parquet")
+    metrics = json.loads((output / "stress-metrics.json").read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert requested_checkpoints == [run_dir / "checkpoints" / "best.pt"]
+    assert set(predictions["split"]) == {"test"}
+    assert len(predictions) == 8
+    assert set(metrics["conditions"]) == {
+        "webp_q80",
+        "webp_q50",
+        "screenshot_1440",
+        "screenshot_1080",
+    }
