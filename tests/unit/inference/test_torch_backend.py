@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 from PIL import Image
@@ -136,6 +137,26 @@ def test_torch_backend_reports_missing_or_invalid_checkpoints(tmp_path) -> None:
     with pytest.raises(TrainingError, match="model state"):
         TorchLogitBackend.from_checkpoint(
             invalid,
+            model_factory=TinyDetector,
+            processor=FakeProcessor(),
+        )
+
+
+def test_torch_backend_wraps_restricted_checkpoint_load_errors(tmp_path) -> None:
+    from prooflens.inference.torch_backend import TorchLogitBackend
+
+    checkpoint = tmp_path / "legacy-unsafe.pt"
+    torch.save(
+        {
+            "model": TinyDetector().state_dict(),
+            "numpy_rng": np.random.get_state(),
+        },
+        checkpoint,
+    )
+
+    with pytest.raises(TrainingError, match="could not be loaded"):
+        TorchLogitBackend.from_checkpoint(
+            checkpoint,
             model_factory=TinyDetector,
             processor=FakeProcessor(),
         )
