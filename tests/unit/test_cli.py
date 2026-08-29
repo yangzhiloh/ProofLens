@@ -107,6 +107,24 @@ def test_primary_manifest_cli_combines_acquired_sid_and_wildfake(tmp_path: Path)
     assert frame.loc[frame["label"] == 1, "generator_family"].nunique() >= 3
 
 
+def test_manifest_cli_reports_malformed_acquired_manifest_as_data_integrity_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from prooflens.cli import dispatch
+
+    config_path = write_primary_fixture(tmp_path)
+    pd.DataFrame([{"sample_id": "sid-real"}]).to_parquet(
+        tmp_path / "sid_set" / "manifest.parquet", index=False
+    )
+
+    exit_code = dispatch(
+        argparse.Namespace(command="manifest", config=config_path, output=tmp_path / "primary.parquet")
+    )
+
+    assert exit_code == 3
+    assert "data integrity error" in capsys.readouterr().err
+
+
 def test_select_command_uses_current_checkpoint_ranking(tmp_path) -> None:
     from prooflens.cli import run_select_cli
 
