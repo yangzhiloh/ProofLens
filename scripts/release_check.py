@@ -35,7 +35,7 @@ _FORBIDDEN_NAMES = frozenset({".env", "id_rsa", "id_ed25519"})
 _PRIVATE_KEY_SUFFIXES = frozenset({".pem", ".key"})
 _MODEL_BINARY_SUFFIXES = frozenset({".ckpt", ".onnx", ".pt", ".pth", ".safetensors"})
 _PRIVATE_KEY_PATTERN = re.compile(
-    r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
+    r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----"
 )
 _TOKEN_PATTERN = re.compile(
     r"(?i)(hf_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|"
