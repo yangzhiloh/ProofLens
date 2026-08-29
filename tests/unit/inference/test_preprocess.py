@@ -71,3 +71,18 @@ def test_production_processor_import_and_pretrained_load_are_explicit_and_lazy(
     assert processor is not None
     assert import_calls == ["transformers"]
     assert pretrained_calls == ["facebook/dinov2-base"]
+
+
+def test_fixture_processor_is_offline_and_matches_fixture_tensor_contract() -> None:
+    preprocess = importlib.import_module("prooflens.inference.preprocess")
+    processor = preprocess.create_fixture_processor()
+
+    pixels = preprocess.preprocess_images(
+        [Image.new("RGB", (8, 6), (255, 128, 0))],
+        processor=processor,
+    )
+
+    assert pixels.shape == (1, 3, 224, 224)
+    assert pixels.dtype == torch.float32
+    assert torch.all((pixels >= 0.0) & (pixels <= 1.0))
+    assert preprocess.FIXTURE_PREPROCESSING_VERSION == "fixture-rgb-224-v1"

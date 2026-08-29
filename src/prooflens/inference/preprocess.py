@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
 
+import numpy as np
 import torch
 from PIL import Image
 from torch import Tensor
@@ -11,6 +12,7 @@ from prooflens.errors import DataIntegrityError
 
 DINO_MODEL_ID = "facebook/dinov2-base"
 PREPROCESSING_VERSION = "dinov2-base-224-v1"
+FIXTURE_PREPROCESSING_VERSION = "fixture-rgb-224-v1"
 
 
 class ImageProcessor(Protocol):
@@ -25,6 +27,30 @@ def create_dinov2_processor() -> ImageProcessor:
     from transformers import AutoImageProcessor
 
     return AutoImageProcessor.from_pretrained(DINO_MODEL_ID)
+
+
+class FixtureImageProcessor:
+    """Deterministic RGB scaling used only by the miniature demo workflow."""
+
+    def __call__(self, *, images: Sequence[Image.Image], return_tensors: str):
+        values = np.stack(
+            [
+                np.asarray(image.resize((224, 224)), dtype=np.float32).transpose(2, 0, 1)
+                / 255.0
+                for image in images
+            ]
+        ).astype(np.float32)
+        if return_tensors == "np":
+            return {"pixel_values": values}
+        if return_tensors == "pt":
+            return {"pixel_values": torch.from_numpy(values)}
+        raise ValueError("fixture processor supports only 'pt' and 'np' tensors")
+
+
+def create_fixture_processor() -> ImageProcessor:
+    """Create the offline processor paired with fixture-demo exports."""
+
+    return FixtureImageProcessor()
 
 
 def preprocess_images(

@@ -94,6 +94,12 @@ def build_parser() -> argparse.ArgumentParser:
     app.add_argument("--checkpoint", type=Path)
     app.add_argument("--model", type=Path)
     app.add_argument("--calibration", type=Path, required=True)
+    app.add_argument(
+        "--preprocessing",
+        choices=("dinov2", "fixture"),
+        default="dinov2",
+        help="Use 'fixture' only with artifacts from scripts/reproduce_small.py.",
+    )
     return parser
 
 
@@ -616,12 +622,27 @@ def run_app_cli(args: argparse.Namespace) -> int:
         if args.model is None:
             raise UserInputError("--model is required for the ONNX backend")
         from prooflens.inference.onnx_backend import OnnxLogitBackend
-        from prooflens.inference.preprocess import create_dinov2_processor
+        from prooflens.inference.preprocess import (
+            FIXTURE_PREPROCESSING_VERSION,
+            create_dinov2_processor,
+            create_fixture_processor,
+        )
+
+        preprocessing = getattr(args, "preprocessing", "dinov2")
+        if preprocessing == "fixture":
+            processor = create_fixture_processor()
+            preprocessing_version = FIXTURE_PREPROCESSING_VERSION
+            model_version = "prooflens-fixture-onnx"
+        else:
+            processor = create_dinov2_processor()
+            preprocessing_version = "dinov2-base-224-v1"
+            model_version = "prooflens-onnx"
 
         backend = OnnxLogitBackend(
             args.model,
-            create_dinov2_processor(),
-            model_version="prooflens-onnx",
+            processor,
+            model_version=model_version,
+            preprocessing_version=preprocessing_version,
         )
     app = create_app(InferenceService.from_calibration(backend, args.calibration))
     app.launch()
