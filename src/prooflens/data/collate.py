@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from numbers import Integral
 
 import torch
+from PIL import Image
 from torch import Tensor
 
 from prooflens.data.dataset import SourceItem
@@ -26,6 +27,7 @@ class PairedBatch:
     source_group_ids: tuple[str, ...]
     splits: tuple[str, ...]
     split_group_ids: tuple[str, ...]
+    source_images: tuple[Image.Image, ...] | None = None
 
 
 class PairedBatchCollator:
@@ -82,6 +84,7 @@ class PairedBatchCollator:
             source_group_ids=tuple(item.source_group_id for item in batch),
             splits=tuple(item.split for item in batch),
             split_group_ids=tuple(item.split_group_id for item in batch),
+            source_images=tuple(item.image.copy() for item in batch),
         )
 
 
