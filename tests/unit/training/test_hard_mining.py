@@ -1,0 +1,99 @@
+from __future__ import annotations
+
+import logging
+
+import pytest
+import torch
+
+
+def test_select_lowest_margin_uses_each_samples_correct_class() -> None:
+    from prooflens.training.hard_mining import select_lowest_margin
+
+    logits_by_condition = {
+        "jpeg_q30": torch.tensor([2.0, -2.0]),
+        "blur_s2.0": torch.tensor([-1.0, 1.0]),
+        "noise_s0.10": torch.tensor([0.5, -0.5]),
+    }
+
+    selection = select_lowest_margin(
+        logits_by_condition, torch.tensor([1.0, 0.0])
+    )
+
+    assert selection == ("blur_s2.0", "blur_s2.0")
+
+
+def test_candidate_sampling_is_repeatable_and_uses_distinct_families() -> None:
+    from prooflens.data.transforms import canonical_specs
+    from prooflens.training.hard_mining import HardTransformMiner
+
+    miner = HardTransformMiner(canonical_specs(), seed=17, candidate_count=3)
+
+    first = miner.sample_candidates(("a", "b"), epoch=2)
+    repeated = miner.sample_candidates(("a", "b"), epoch=2)
+
+    assert first == repeated
+    assert all(len({spec.family for spec in row}) == 3 for row in first)
+
+
+def test_miner_selects_lowest_margin_per_sample() -> None:
+    from prooflens.data.transforms import canonical_specs
+    from prooflens.training.hard_mining import HardTransformMiner
+
+    miner = HardTransformMiner(
+        canonical_specs(), seed=17, candidate_count=3, exploration_probability=0.0
+    )
+    condition_ids = (
+        ("jpeg_q30", "blur_s2.0", "noise_s0.10"),
+        ("jpeg_q30", "blur_s2.0", "noise_s0.10"),
+    )
+    logits = torch.tensor([[2.0, -1.0, 0.5], [-2.0, 1.0, -0.5]])
+
+    selected = miner.select(
+        logits,
+        condition_ids,
+        torch.tensor([1.0, 0.0]),
+        ("a", "b"),
+        epoch=3,
+    )
+
+    assert selected == ("blur_s2.0", "blur_s2.0")
+
+
+def test_exploration_is_repeatable_and_can_override_hardest() -> None:
+    from prooflens.data.transforms import canonical_specs
+    from prooflens.training.hard_mining import HardTransformMiner
+
+    miner = HardTransformMiner(
+        canonical_specs(), seed=31, candidate_count=3, exploration_probability=1.0
+    )
+    conditions = (("jpeg_q30", "blur_s2.0", "noise_s0.10"),)
+    logits = torch.tensor([[-10.0, 5.0, 5.0]])
+
+    first = miner.select(logits, conditions, torch.tensor([1.0]), ("sample",), 4)
+    repeated = miner.select(logits, conditions, torch.tensor([1.0]), ("sample",), 4)
+
+    assert first == repeated
+    assert first != ("jpeg_q30",)
+
+
+def test_family_proportions_warn_when_selection_collapses(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from prooflens.data.transforms import canonical_specs
+    from prooflens.training.hard_mining import HardTransformMiner
+
+    miner = HardTransformMiner(
+        canonical_specs(), seed=17, candidate_count=3, exploration_probability=0.0
+    )
+    conditions = tuple(
+        ("jpeg_q30", "blur_s2.0", "noise_s0.10") for _ in range(4)
+    )
+    logits = torch.tensor([[-5.0, 1.0, 2.0]] * 4)
+    miner.select(logits, conditions, torch.ones(4), tuple("abcd"), epoch=1)
+
+    with caplog.at_level(logging.WARNING):
+        proportions = miner.epoch_family_proportions(reset=True)
+
+    assert proportions["selected"]["jpeg"] == pytest.approx(1.0)
+    assert "exceeds 60 percent" in caplog.text
+    assert miner.epoch_family_proportions()["selected"] == {}
