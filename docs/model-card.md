@@ -64,9 +64,12 @@ ROC AUC. Threshold reporting includes accuracy, precision, recall, F1, false pos
 negatives after validation-only temperature scaling and threshold selection. Model size,
 inference time, error examples, and ONNX parity are also required.
 
-No primary metric value is claimed here. Task 7 must execute E0 through E4 on the frozen manifest
-and split, select the validation winner, calibrate it, evaluate untouched test partitions, and
-record the resulting evidence before results can be published.
+No primary metric value is claimed here. Task 6 runs E0. Task 7 runs E1 through E4 on the same
+frozen manifest and split, compares them with E0, and selects the validation winner. Primary
+measured results and distributable weights remain unavailable until Task 7 completes. Task 8 then
+fits calibration, evaluates the untouched final test partitions, produces the final report, and
+publishes ONNX only after parity passes. Task 9 supplies laptop and clean-checkout acceptance
+evidence. Task 10 records and publishes the submission.
 
 ## Limitations
 

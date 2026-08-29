@@ -29,19 +29,26 @@ Dataset contents are not distributed by this repository.
 
 - Use in ProofLens: separate low-resolution stress test only
 - Licence declaration: MIT
-- Attribution requirement recorded by the project: retain the required dataset citations
+- [Official CIFAKE dataset page](https://www.kaggle.com/datasets/birdy654/cifake-real-and-ai-generated-synthetic-images)
+- Dataset paper: Jordan J. Bird and Ahmad Lotfi, “CIFAKE: Image Classification and Explainable
+  Identification of AI-Generated Synthetic Images,” IEEE Access 12 (2024), 15642-15650,
+  [arXiv 2303.14126](https://arxiv.org/abs/2303.14126)
+- Source-dataset citation required by the official dataset page: Alex Krizhevsky and Geoffrey
+  Hinton (2009), “Learning Multiple Layers of Features from Tiny Images”
 
 CIFAKE is excluded from primary training. Dataset contents are not distributed by this
 repository.
 
 ## WildFake
 
-- Official repository recorded by the project:
-  `https://github.com/hy-zpg/AIGC-Image-Detection-Dataset`
-- Acquisition source recorded by the project:
-  `https://modelscope.cn/datasets/hy2628982280/WildFake/summary`
+- [Official repository recorded by the project](https://github.com/hy-zpg/AIGC-Image-Detection-Dataset)
+- [Acquisition source recorded by the project](https://modelscope.cn/datasets/hy2628982280/WildFake/summary)
 - Licence declaration: REQUIRES-VERIFICATION
-- Attribution requirement recorded by the project: retain the official paper and acquisition
+- Dataset paper: Yan Hong, Jianming Feng, Haoxing Chen, Jun Lan, Huijia Zhu, Weiqiang Wang, and
+  Jianfu Zhang, “WildFake: A Large-Scale and Hierarchical Dataset for AI-Generated Images
+  Detection,” AAAI 39(4), 3500-3508 (2025),
+  [DOI 10.1609/aaai.v39i4.32363](https://doi.org/10.1609/aaai.v39i4.32363)
+- Attribution requirement recorded by the project: retain the dataset paper and acquisition
   source attribution
 
 WildFake acquisition is manual. Verify the terms attached to the specific obtained copy before

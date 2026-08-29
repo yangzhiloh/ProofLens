@@ -2,9 +2,11 @@
 
 ## Publication status
 
-This is a fact-only pre-publication draft. Primary measured results, selected weights, and the
-public demonstration recording are unavailable until Task 7 of the remaining-work plan
-completes. Do not add performance claims from the miniature fixture workflow.
+This is a fact-only pre-publication draft. Primary measured results and distributable weights
+remain unavailable until Task 7 of the remaining-work plan completes. Calibration, final test
+reporting, and parity-gated ONNX are Task 8 outputs. Laptop and clean-checkout acceptance belongs
+to Task 9, and the public demonstration recording and publication belong to Task 10. Do not add
+performance claims from the miniature fixture workflow.
 
 ## Project summary
 
@@ -69,10 +71,12 @@ accuracy or robustness.
 ## Results boundary
 
 No primary clean AUC, robust AUC, worst-condition AUC, unseen-generator AUC, threshold metric,
-model size, or inference-time value is asserted in this draft. After Task 7, publication requires
-the generated test report, selected configuration and provenance, error analysis, ONNX parity
-report, and laptop acceptance evidence. Only values directly present in those artifacts may be
-added to the final entry.
+model size, or inference-time value is asserted in this draft. Task 6 produces E0. Task 7 runs E1
+through E4, compares them with E0, and selects the validation winner, making primary measured
+results and distributable weights available. Task 8 produces calibration, untouched final test
+reporting, error analysis, and a parity-gated ONNX export. Task 9 produces laptop and
+clean-checkout acceptance evidence. Only values directly present in those artifacts may be added
+to the final entry, and Task 10 performs recording and publication.
 
 ## Limitations and responsible use
 
@@ -88,6 +92,8 @@ are excluded from Git and require separate publication review.
 
 ## Final publication gate
 
-Publish this entry only after Task 7 supplies measured primary results and weights, the release
-check passes on the final tracked tree, public artefact links are manually verified, and a human
-reviews the text and records the demonstration video.
+Publish this entry only in Task 10, after Task 7 supplies measured primary results and weights,
+Task 8 supplies calibrated final test and ONNX parity evidence, and Task 9 supplies laptop and
+clean-checkout acceptance. The release check must pass on the final tracked tree, public artefact
+links must be manually verified, and a human must review the text and record the demonstration
+video.

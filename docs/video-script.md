@@ -1,8 +1,11 @@
 # ProofLens demonstration video script
 
-Target duration: 2 to 4 minutes. Record only after Task 7 produces the selected weights,
-primary-dataset report, calibration, and parity-verified ONNX export. Until then, this is a
-fact-only recording script and contains no claimed metric values.
+Target duration: 2 to 4 minutes. Primary measured results and distributable weights remain
+unavailable until Task 7 selects from E1 through E4 after Task 6 produces E0. Task 8 supplies
+calibration, untouched final test reporting, and the parity-gated ONNX export. Task 9 supplies
+laptop and clean-checkout acceptance. Record and publish only in Task 10 after all of that
+evidence exists. Until then, this is a fact-only recording script and contains no claimed metric
+values.
 
 ## 0:00 to 0:25, problem and scope
 
@@ -42,15 +45,16 @@ the one that most reduces the correct margin while preserving family exploration
 
 ## 1:25 to 1:55, measured evaluation
 
-On screen: the final Task 7 report, selected-run provenance, and condition table. Do not show
-fixture metrics as project results.
+On screen: the final Task 8 untouched-test report, Task 7 selected-run provenance, and condition
+table. Do not show fixture metrics as project results.
 
 Narration instructions:
 
-State only values visible in the final generated report. Cover clean ROC AUC, family-macro robust
-ROC AUC, worst condition, unseen-generator ROC AUC, and validation-selected threshold metrics.
-Identify the selected E0 through E4 configuration. If a required value is absent, state that it
-was not measured instead of estimating it.
+State only values visible in the final Task 8 generated report. Cover clean ROC AUC, family-macro
+robust ROC AUC, worst condition, unseen-generator ROC AUC, and validation-selected threshold
+metrics. Identify the Task 7 winner selected from E1 through E4 after comparison with the Task 6
+E0 baseline. If a required value is absent, state that it was not measured instead of estimating
+it.
 
 ## 1:55 to 2:35, local app
 
