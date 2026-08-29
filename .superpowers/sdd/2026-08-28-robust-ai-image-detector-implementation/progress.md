@@ -135,3 +135,4 @@ Milestone 1: direct local review found an integration blocker between replacemen
 Milestone 1: fix RED reproduced the blocker through the real weighted sampler and collator; the regression failed at the duplicate-ID uniqueness guard. The minimal fix removed only that guard while retaining nonempty ID validation.
 Milestone 1: fix GREEN passed the new regression, then all 54 Task 6 tests in 7.70 seconds. The final full suite passed 219 tests in 12.20 seconds, and Ruff passed with no diagnostics.
 Milestone 1: direct consolidated review complete after the sampler-collator fix. The implementation guide now records the three role branches, Tasks 7 to 18 ownership, shared-file boundaries, milestone reviews, and merge order.
+Integration policy: after the Milestone 1 merge, `main` is the integration base and all subsequent work uses the documented `role/*` branches rather than new `codex/*` branches.

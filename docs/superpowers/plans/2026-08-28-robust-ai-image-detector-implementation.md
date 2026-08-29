@@ -46,7 +46,7 @@ If a daily exit condition slips, preserve the completed baseline and robustness 
 
 ## Three-Role Delivery Workflow
 
-Create all three role branches from the same reviewed Milestone 1 commit on `codex/prooflens-implementation`. A role may add files within its ownership boundary, but it must not edit another role's owned files. When a cross-role interface needs to change, record the request in the progress ledger and let the integration owner make or assign the shared edit after the current milestone review.
+Create all three role branches from the same reviewed Milestone 1 commit on `main`. Use the documented `role/*` branch names for subsequent work; do not create new `codex/*` branches. A role may add files within its ownership boundary, but it must not edit another role's owned files. When a cross-role interface needs to change, record the request in the progress ledger and let the integration owner make or assign the shared edit after the current milestone review.
 
 | Role | Branch | Tasks | Responsibilities | Exclusive implementation ownership |
 | --- | --- | ---: | --- | --- |
@@ -62,9 +62,9 @@ Existing interfaces are merge contracts. Model and training consumes `PairedBatc
 
 ### Merge order and milestone gates
 
-1. Merge `role/model-training` after the Tasks 7 to 9 milestone review and full gate.
-2. Update `role/evaluation-inference` from the integration branch, then merge it after the Tasks 10 to 13 milestone review and full gate.
-3. Update `role/product-release` from the integration branch, then merge it after the Tasks 14 to 18 milestone reviews and release gate.
+1. Merge `role/model-training` into `main` after the Tasks 7 to 9 milestone review and full gate.
+2. Update `role/evaluation-inference` from `main`, then merge it after the Tasks 10 to 13 milestone review and full gate.
+3. Update `role/product-release` from `main`, then merge it after the Tasks 14 to 18 milestone reviews and release gate.
 
 Do not merge a later role first, and do not consolidate per task. Keep datasets, model weights, generated experiment artifacts, and credentials out of Git. Every role hands off exact commands, configuration changes, test results, and measured deviations at its milestone boundary.
 
