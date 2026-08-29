@@ -96,6 +96,51 @@ def test_sid_adapter_rejects_acquired_paths_outside_root(tmp_path: Path) -> None
         list(SidSetAdapter(version="main", root=root).scan())
 
 
+def test_canonical_parquet_adapter_yields_validated_records_without_changing_paths_or_labels(
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "manifest.parquet"
+    expected = [
+        ManifestRecord(
+            sample_id="sid-real",
+            path=tmp_path / "images" / "real.png",
+            label=0,
+            dataset_name="sid_set",
+            dataset_version="pinned-revision",
+            generator_family="authentic",
+            source_group_id="sid-real",
+            original_image_id="sid-real",
+            width=4,
+            height=3,
+            file_format="PNG",
+            licence_identifier="CC-BY-4.0",
+        ),
+        ManifestRecord(
+            sample_id="sid-fake",
+            path=tmp_path / "images" / "fake.png",
+            label=1,
+            dataset_name="sid_set",
+            dataset_version="pinned-revision",
+            generator_family="generated",
+            source_group_id="sid-fake",
+            original_image_id="sid-fake",
+            width=4,
+            height=3,
+            file_format="PNG",
+            licence_identifier="CC-BY-4.0",
+        ),
+    ]
+    pd.DataFrame([record.model_dump(mode="json") for record in expected]).to_parquet(
+        manifest_path, index=False
+    )
+
+    from prooflens.data.adapters.local_manifest import CanonicalParquetAdapter
+
+    actual = list(CanonicalParquetAdapter(manifest_path, "sid_set").scan())
+
+    assert actual == expected
+
+
 def test_wildfake_adapter_reads_generator_from_hierarchy(wildfake_fixture: Path) -> None:
     records = list(WildFakeAdapter(wildfake_fixture).scan())
     assert {record.generator_family for record in records if record.label == 1} == {"sdxl"}

@@ -95,6 +95,97 @@ def test_manifest_command_merges_acquired_sid_with_wildfake_and_hashes_rows(
     assert combined["perceptual_hash"].str.fullmatch(r"[0-9a-f]{16}").all()
 
 
+def _write_image(path: Path, color: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (4, 3), color).save(path)
+
+
+def write_primary_fixture(tmp_path: Path) -> Path:
+    sid_root = tmp_path / "sid_set"
+    sid_real = sid_root / "images" / "real.png"
+    sid_fake = sid_root / "images" / "fake.png"
+    _write_image(sid_real, "white")
+    _write_image(sid_fake, "black")
+    pd.DataFrame(
+        [
+            {
+                "sample_id": "sid-real",
+                "path": str(sid_real),
+                "label": 0,
+                "dataset_name": "sid_set",
+                "dataset_version": "pinned-revision",
+                "generator_family": "authentic",
+                "source_group_id": "sid-real",
+                "original_image_id": "sid-real",
+                "width": 4,
+                "height": 3,
+                "file_format": "PNG",
+                "licence_identifier": "CC-BY-4.0",
+                "content_checksum": "",
+                "perceptual_hash": "",
+                "split": "unassigned",
+            },
+            {
+                "sample_id": "sid-fake",
+                "path": str(sid_fake),
+                "label": 1,
+                "dataset_name": "sid_set",
+                "dataset_version": "pinned-revision",
+                "generator_family": "generated",
+                "source_group_id": "sid-fake",
+                "original_image_id": "sid-fake",
+                "width": 4,
+                "height": 3,
+                "file_format": "PNG",
+                "licence_identifier": "CC-BY-4.0",
+                "content_checksum": "",
+                "perceptual_hash": "",
+                "split": "unassigned",
+            },
+        ]
+    ).to_parquet(sid_root / "manifest.parquet", index=False)
+    wildfake_root = tmp_path / "wildfake"
+    _write_image(wildfake_root / "real" / "camera" / "real.png", "gray")
+    for family, color in (("flux", "red"), ("sdxl", "blue"), ("dalle3", "green")):
+        _write_image(wildfake_root / "fake" / family / "fake.png", color)
+    config_path = tmp_path / "primary.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "sources": [
+                    {"name": "sid_set", "root": str(sid_root), "allowed_labels": [0, 1]},
+                    {
+                        "name": "wildfake",
+                        "root": str(wildfake_root),
+                        "allowed_labels": [0, 1],
+                        "generator_labeled": True,
+                    },
+                ],
+                "maximum_corrupt_fraction": 0.01,
+                "require_both_labels": True,
+                "minimum_generator_families": 3,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return config_path
+
+
+def test_primary_manifest_cli_combines_acquired_sid_and_wildfake(tmp_path: Path) -> None:
+    from prooflens.cli import run_manifest_cli
+
+    output = tmp_path / "primary.parquet"
+
+    exit_code = run_manifest_cli(
+        argparse.Namespace(config=write_primary_fixture(tmp_path), output=output)
+    )
+
+    frame = pd.read_parquet(output)
+    assert exit_code == 0
+    assert set(frame["dataset_name"]) == {"sid_set", "wildfake"}
+    assert frame.loc[frame["label"] == 1, "generator_family"].nunique() >= 3
+
+
 def test_select_command_uses_current_checkpoint_ranking(tmp_path) -> None:
     from prooflens.cli import run_select_cli
 

@@ -157,7 +157,7 @@ def run_acquire_cli(args: argparse.Namespace) -> int:
 
 def run_manifest_cli(args: argparse.Namespace) -> int:
     from prooflens.data.acquire import load_primary_policy, validate_primary_manifest
-    from prooflens.data.adapters.sid_set import SidSetAdapter
+    from prooflens.data.adapters.local_manifest import CanonicalParquetAdapter
     from prooflens.data.adapters.wildfake import WildFakeAdapter
     from prooflens.data.manifest import build_manifest
 
@@ -165,7 +165,7 @@ def run_manifest_cli(args: argparse.Namespace) -> int:
     adapters = []
     for source in policy.sources:
         if source.name == "sid_set":
-            adapters.append(SidSetAdapter(version="configured", root=source.root))
+            adapters.append(CanonicalParquetAdapter(source.root / "manifest.parquet", "sid_set"))
         elif source.name == "wildfake":
             adapters.append(
                 WildFakeAdapter(
