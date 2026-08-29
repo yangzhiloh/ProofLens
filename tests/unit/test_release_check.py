@@ -86,7 +86,9 @@ def test_release_check_rejects_private_key_files(tmp_path: Path, name: str) -> N
     assert any(name in error and "secret-like" in error for error in result.errors)
 
 
-@pytest.mark.parametrize("key_prefix", ("", "RSA ", "EC ", "DSA ", "OPENSSH "))
+@pytest.mark.parametrize(
+    "key_prefix", ("", "RSA ", "EC ", "DSA ", "OPENSSH ", "ENCRYPTED ")
+)
 def test_release_check_rejects_embedded_private_key_material(
     tmp_path: Path, key_prefix: str
 ) -> None:
