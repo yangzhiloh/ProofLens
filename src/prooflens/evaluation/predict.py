@@ -150,4 +150,3 @@ def _require_text(value: object, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise MetricPartitionError(f"prediction {field} must be a nonempty string")
     return value
-
