@@ -667,3 +667,25 @@ def test_app_rejects_preprocessing_that_conflicts_with_manifest(tmp_path) -> Non
                 artifact_manifest=None,
             )
         )
+
+
+def test_evaluate_stress_command_requires_selection_split_and_output() -> None:
+    from prooflens.cli import COMMANDS, build_parser
+
+    parsed = build_parser().parse_args(
+        [
+            "evaluate-stress",
+            "--selection",
+            "selection.json",
+            "--split",
+            "test",
+            "--output",
+            "stress-output",
+        ]
+    )
+
+    assert "evaluate-stress" in COMMANDS
+    assert parsed.command == "evaluate-stress"
+    assert parsed.selection == Path("selection.json")
+    assert parsed.split == "test"
+    assert parsed.output == Path("stress-output")
