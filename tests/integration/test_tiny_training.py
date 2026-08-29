@@ -76,6 +76,7 @@ def _components(config: ExperimentConfig):
             metrics={"fixture": 0.7},
         ),
         device="cpu",
+        epoch_metrics_callback=lambda: {"selected/jpeg": 1.0},
     )
 
 
@@ -98,6 +99,7 @@ def test_tiny_training_emits_checkpoint_history_and_early_metadata(tmp_path) -> 
     assert history[-1]["epoch"] == 1
     assert history[-1]["train_loss"] >= 0
     assert history[-1]["composite_score"] == 0.7
+    assert history[-1]["training_metrics"] == {"selected/jpeg": 1.0}
     assert components.collator.epochs == [1]  # type: ignore[attr-defined]
 
 

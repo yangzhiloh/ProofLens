@@ -66,6 +66,7 @@ class TrainingComponents:
     batch_loss_callback: Callable[[nn.Module, Any], Tensor]
     validation_callback: Callable[[nn.Module, int], ValidationSnapshot]
     device: str
+    epoch_metrics_callback: Callable[[], Mapping[str, float]] | None = None
 
 
 def run_training(
@@ -93,6 +94,7 @@ class Trainer:
         self.collator = components.collator
         self.batch_loss_callback = components.batch_loss_callback
         self.validation_callback = components.validation_callback
+        self.epoch_metrics_callback = components.epoch_metrics_callback
         self.device = components.device
         self.checkpoints = CheckpointManager(self.output_dir / "checkpoints")
         self.global_step = 0
@@ -171,6 +173,11 @@ class Trainer:
         epochs_without_improvement = 0
         for epoch in range(self.start_epoch, self.config.training.epochs + 1):
             train_loss = self.train_epoch(epoch)
+            training_metrics = (
+                dict(self.epoch_metrics_callback())
+                if self.epoch_metrics_callback is not None
+                else {}
+            )
             validation = self.validation_callback(self.model, epoch)
             checkpoint = self.checkpoints.save_epoch(
                 self.model,
@@ -180,7 +187,13 @@ class Trainer:
                 self.global_step,
                 metadata.config_sha256,
             )
-            _append_history(self.output_dir, epoch, train_loss, validation)
+            _append_history(
+                self.output_dir,
+                epoch,
+                train_loss,
+                validation,
+                training_metrics,
+            )
             if validation.composite_score > best_score:
                 best_score = validation.composite_score
                 best_checkpoint = self.checkpoints.mark_best(checkpoint)
@@ -202,7 +215,14 @@ def build_training_components(config: ExperimentConfig) -> TrainingComponents:
     if train_frame.empty or validation_frame.empty:
         raise TrainingError("assigned manifest requires train and validation rows")
     processor = create_dinov2_processor()
+    hard_miner: HardTransformMiner | None = None
     if config.transforms.hard_mining:
+        hard_miner = HardTransformMiner(
+            canonical_specs(),
+            seed=config.seed,
+            candidate_count=config.transforms.candidate_count,
+            exploration_probability=config.transforms.exploration_probability,
+        )
         train_collator: Any = HardMiningCollator(processor=processor)
     else:
         train_collator = PairedBatchCollator(
@@ -254,12 +274,8 @@ def build_training_components(config: ExperimentConfig) -> TrainingComponents:
     )
 
     if config.transforms.hard_mining:
-        hard_miner = HardTransformMiner(
-            canonical_specs(),
-            seed=config.seed,
-            candidate_count=config.transforms.candidate_count,
-            exploration_probability=config.transforms.exploration_probability,
-        )
+        if hard_miner is None:  # pragma: no cover - guarded by the shared condition
+            raise TrainingError("hard-mining configuration failed to create a miner")
 
         def batch_loss(current_model: nn.Module, batch: Any) -> Tensor:
             return compute_hard_mined_loss(
@@ -279,6 +295,16 @@ def build_training_components(config: ExperimentConfig) -> TrainingComponents:
             clean = current_model(batch.clean_pixels.to(device))
             transformed = current_model(batch.transformed_pixels.to(device))
             return compute_survival_loss(clean, transformed, labels, weights).total
+
+    def epoch_metrics() -> Mapping[str, float]:
+        if hard_miner is None:
+            return {}
+        summary = hard_miner.epoch_family_proportions(reset=True)
+        return {
+            f"{kind}/{family}": proportion
+            for kind, proportions in summary.items()
+            for family, proportion in proportions.items()
+        }
 
     def validate(current_model: nn.Module, epoch: int) -> ValidationSnapshot:
         validation_collator.set_epoch(epoch)
@@ -317,6 +343,7 @@ def build_training_components(config: ExperimentConfig) -> TrainingComponents:
         batch_loss_callback=batch_loss,
         validation_callback=validate,
         device=device,
+        epoch_metrics_callback=epoch_metrics,
     )
 
 
@@ -340,6 +367,7 @@ def _append_history(
     epoch: int,
     train_loss: float,
     validation: ValidationSnapshot,
+    training_metrics: Mapping[str, float],
 ) -> None:
     record = {
         "epoch": epoch,
@@ -348,6 +376,7 @@ def _append_history(
         "macro_robust_auc": validation.macro_robust_auc,
         "composite_score": validation.composite_score,
         "metrics": dict(validation.metrics),
+        "training_metrics": dict(training_metrics),
     }
     with (output_dir / "history.jsonl").open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(record, sort_keys=True) + "\n")
