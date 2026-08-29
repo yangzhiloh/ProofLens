@@ -1,0 +1,27 @@
+seed: 17
+data:
+  manifest: artifacts/manifests/primary-split.parquet
+model:
+  name: facebook/dinov2-base
+  stage: last2
+training:
+  epochs: 5
+  batch_size: 32
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  gradient_accumulation_steps: 1
+  max_gradient_norm: 1.0
+  warmup_fraction: 0.10
+  early_stopping_patience: 2
+  num_workers: 0
+transforms:
+  enabled: true
+  hard_mining: false
+  candidate_count: 3
+  exploration_probability: 0.20
+loss:
+  clean_bce: 1.0
+  transformed_bce: 1.0
+  prediction_consistency: 0.25
+  feature_consistency: 0.10
+output_dir: artifacts/runs/e3
