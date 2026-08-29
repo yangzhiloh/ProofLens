@@ -98,3 +98,29 @@ Task 2: fix round 1/5 produced commits `6518426..1424c23`; RED 3 failed and 9 pa
 Task 2: complete (commits `d00cd08..1424c23`, review clean).
 Task 3: brief generated; base `1424c23`.
 Task 3: dispatched implementer `/root/task_3_implementer`; base `1424c23`.
+Task 3: implementation commits `c3db09c..f5e016e`; focused tests 15 passed, full suite 31 passed, Ruff passed.
+Workspace: migrated the clean implementation snapshot into the GitHub-backed delivery repository on branch `codex/prooflens-implementation` at commit `6b9f6e2`; future work uses `C:\Users\Loh Yang Zhi\Documents\Projects\Tiktoky`.
+Task 3: independent review dispatched to `/root/task_3_reviewer`.
+Task 3: review requested fixes for safe acquisition paths, missing or blank dataset names, production WildFake guidance, and deterministic tied-count rendering.
+Task 3: fix round 1/5 dispatched to original implementer `/root/task_3_implementer` in the delivery repository.
+Task 3: fix round 1/5 produced commits `e8946e1..a26a50b`; RED 11 failed, GREEN 37 passed, full suite 42 passed, Ruff passed; fresh re-review dispatched to `/root/task_3_rereviewer`.
+Task 3: re-review requested fix round 2 for non-string or null path values and collisions among images, manifest, and reserved acquisition metadata destinations.
+Task 3: fix round 2/5 dispatched to original implementer `/root/task_3_implementer`.
+
+## Execution protocol update
+
+User-approved milestone review mode replaces per-task independent review from this point forward. Each task still uses test-driven development, focused verification, and local recovery commits. Independent review, fix consolidation, full-suite verification, and the reviewable Git handoff occur once per milestone. No remote push is authorized.
+
+- Milestone 1: Tasks 1-6, complete data pipeline.
+- Milestone 2: Tasks 7-9, model and training core.
+- Milestone 3: Tasks 10-13, evaluation through ONNX inference.
+- Milestone 4: Tasks 14-16, app, CLI, documentation, and release gates.
+- Milestone 5: Tasks 17-18, experiments, laptop acceptance, and final handoff.
+
+Milestone 1: in progress; Task 3 fix round 2 resumed, followed by Tasks 4-6 before one consolidated review.
+Task 3: fix round 2 complete in commits `13f81f8..2f91fac`; RED 23 failed, edge-case GREEN 23 passed, focused acquisition suite 43 passed, Ruff passed. Consolidated re-review deferred to Milestone 1 gate by user-approved protocol.
+Task 4: dispatched implementer `/root/task_4_implementer`; base `2f91fac`.
+Task 4: original implementer interrupted after creating untracked hashing, splitting, and focused test files; no commit created.
+Task 4: user requested higher reasoning; partial work handed to fresh ultra-reasoning implementer `/root/task_4_ultra_implementer` with the locked Task 4 requirements unchanged.
+Task 4: complete in commits `53dae17..0f0bbd8`; behavioral RED 16 failed and 44 passed plus provenance RED 2 failed, final focused suite 61 passed, Ruff passed. Full-suite and independent review deferred to Milestone 1 gate.
+Task 5: dispatched implementer `/root/task_5_implementer`; base `0f0bbd8`.

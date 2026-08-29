@@ -1,0 +1,1126 @@
+# Review package: 1424c23..f5e016e
+
+## Commits
+f5e016e docs: record dataset acquisition audit evidence
+78d48f6 style: remove trailing audit blank lines
+c3db09c feat: add reproducible data acquisition and audits
+
+## Files changed
+ .../task-3-report.md                               | 125 +++++++
+ configs/data/cifake.yaml                           |   6 +
+ configs/data/primary.yaml                          |  11 +
+ configs/data/sid_subset.yaml                       |  10 +
+ configs/data/wildfake.yaml                         |   8 +
+ src/prooflens/data/acquire.py                      | 362 +++++++++++++++++++++
+ src/prooflens/data/audit.py                        | 182 +++++++++++
+ src/prooflens/errors.py                            |   8 +
+ tests/unit/data/test_acquire.py                    | 207 ++++++++++++
+ tests/unit/data/test_audit.py                      | 107 ++++++
+ 10 files changed, 1026 insertions(+)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-28-robust-ai-image-detector-implementation/task-3-report.md b/.superpowers/sdd/2026-08-28-robust-ai-image-detector-implementation/task-3-report.md
+new file mode 100644
+index 0000000..cd97a59
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-28-robust-ai-image-detector-implementation/task-3-report.md
+@@ -0,0 +1,125 @@
++# Task 3 report: dataset acquisition and source-shortcut audit
++
++## Outcome
++
++Task 3 implements offline-testable SID-Set streaming acquisition, manual WildFake root guidance, primary manifest policy gates, CIFAKE stress-only policy, and JSON plus Markdown source-shortcut audits. Task 2 manifest APIs and schema remain unchanged.
++
++## Files
++
++1. `src/prooflens/data/acquire.py`
++2. `src/prooflens/data/audit.py`
++3. `src/prooflens/errors.py`
++4. `configs/data/sid_subset.yaml`
++5. `configs/data/wildfake.yaml`
++6. `configs/data/cifake.yaml`
++7. `configs/data/primary.yaml`
++8. `tests/unit/data/test_acquire.py`
++9. `tests/unit/data/test_audit.py`
++
++## Decisions
++
++1. SID-Set acquisition calls the injected or Hugging Face loader for `saberzl/SID_Set` with `split="train"`, `streaming=True`, and an explicit pinned revision. The checked-in policy pins `c1674903d858c78e04809c1c6f2703627ac1a621` and defaults to 10,000 rows per binary class.
++2. Selection excludes label `2`, stops immediately after exactly reaching both class caps, and rejects underfilled streams with `DatasetAcquisitionError`.
++3. Acquisition saves decoded source images as RGB PNG files in a staging directory. It preserves `img_id` in `sample_id`, `original_image_id`, and source grouping fields, then builds and validates Parquet through Task 2's `SidSetAdapter`, `ManifestRecord`, and `build_manifest` contracts. Publication relocates paths and atomically replaces the canonical manifest.
++4. Existing acquisition roots are never overwritten. A failed or underfilled acquisition removes its private staging directory and publishes no partial output.
++5. `acquisition.json` records the configured revision, loader-observed revision when exposed, CC-BY-4.0, selected counts, split, dataset identifier, and SHA-256 of canonical sorted configuration JSON.
++6. WildFake remains a manual acquisition. Missing or empty roots identify both the official repository and ModelScope dataset page. The adapter remains responsible for validating the configured export hierarchy.
++7. The primary policy places `minimum_generator_families: 3` at the top level. Validation requires both labels, source-specific allowed labels, approved sources only, and three distinct fake generator families across every approved source marked `generator_labeled`.
++8. CIFAKE is explicitly `stress_only: true`, excluded from primary training, and absent from `primary.yaml`.
++9. Audit output includes row, class, dataset, and generator counts; width and height quantiles; file-format by-label cross-tabs; missing metadata counts including blank strings; exact duplicate count; and meaningful categorical perfect shortcuts.
++10. Perfect-shortcut detection ignores missing and blank values, requires at least two observed categories and both observed labels, and only flags a feature when each observed category maps to exactly one label. Empty and all-missing columns are safe.
++11. If `content_checksum` is absent, the audit explicitly records every row as missing for that field and reports zero exact duplicates. Blank checksums receive the same missing treatment and do not create false duplicate counts.
++12. Audit JSON, audit Markdown, acquisition metadata, and canonical manifest replacement use sibling temporary files followed by atomic replacement where overwrite risk exists.
++
++## TDD evidence
++
++### Initial RED
++
++Command:
++
++```powershell
++& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest tests/unit/data/test_acquire.py tests/unit/data/test_audit.py -v --basetemp .pytest-tmp-task3-red
++```
++
++Exact result: collection stopped with `2 errors in 0.55s`. `prooflens.data.acquire` and `prooflens.data.audit` were both missing. This was the expected RED caused by absent Task 3 behavior, not by pytest or dependency failures.
++
++### First GREEN attempt and correction
++
++Command:
++
++```powershell
++& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest tests/unit/data/test_acquire.py tests/unit/data/test_audit.py -v --basetemp .pytest-tmp-task3-green
++```
++
++Exact result: `1 failed, 13 passed in 1.16s`. The persisted manifest retained staging-directory image paths after publication. The implementation was corrected to rebuild the final manifest atomically against relocated paths.
++
++Follow-up command:
++
++```powershell
++& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest tests/unit/data/test_acquire.py tests/unit/data/test_audit.py -v --basetemp .pytest-tmp-task3-green2
++```
++
++Exact result: `14 passed in 0.62s`.
++
++### Pinned-policy RED and GREEN
++
++Command:
++
++```powershell
++& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest tests/unit/data/test_acquire.py::test_dataset_configs_pin_sid_defaults_and_keep_cifake_stress_only -v --basetemp .pytest-tmp-task3-red-policy
++```
++
++Exact RED result: `1 failed in 0.65s`. The draft policy used mutable revision `main`, whose length was 4 rather than a full 40-character pinned revision.
++
++Follow-up command:
++
++```powershell
++& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest tests/unit/data/test_acquire.py::test_dataset_configs_pin_sid_defaults_and_keep_cifake_stress_only -v --basetemp .pytest-tmp-task3-green-policy
++```
++
++Exact GREEN result: `1 passed in 0.41s`.
++
++## Final verification evidence
++
++### Focused tests
++
++Command:
++
++```powershell
++& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest tests/unit/data/test_acquire.py tests/unit/data/test_audit.py -v --basetemp .pytest-tmp-task3-resume-focused
++```
++
++Exact result: `15 passed in 0.54s`.
++
++### Full suite
++
++Command:
++
++```powershell
++& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest -v --basetemp .pytest-tmp-task3-resume-full
++```
++
++Exact result: `31 passed in 0.77s`.
++
++### Ruff
++
++Command:
++
++```powershell
++& 'C:\Users\Loh Yang Zhi\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m ruff check src tests
++```
++
++Exact result: `All checks passed!`
++
++## Commits
++
++1. `c3db09cbcf5c75db18dcc1f04f7b1b42eca53c68` `feat: add reproducible data acquisition and audits`
++2. `78d48f6f8a1f799adf460f6971deae0b7d297fe6` `style: remove trailing audit blank lines`
++
++No prior commit was amended.
++
++## Concerns
++
++1. The real 20,000-image SID-Set acquisition was not run because Task 3 tests must remain network-free and the source dataset is large. The injected streaming loader exercises acquisition, RGB persistence, canonical manifest construction, metadata, and underfill behavior with tiny fixtures.
++2. WildFake redistribution rights still require human verification before acquisition or publication, as recorded by `REQUIRES-VERIFICATION`.
++3. Some Hugging Face iterable dataset objects do not expose an observed repository revision. In that case, `observed_dataset_revision` deliberately falls back to the configured pinned revision rather than inventing a value.
+diff --git a/configs/data/cifake.yaml b/configs/data/cifake.yaml
+new file mode 100644
+index 0000000..8e76802
+--- /dev/null
++++ b/configs/data/cifake.yaml
+@@ -0,0 +1,6 @@
++name: cifake_stress
++root: data/raw/cifake
++stress_only: true
++include_in_primary_training: false
++allowed_labels: [0, 1]
++licence_identifier: MIT
+diff --git a/configs/data/primary.yaml b/configs/data/primary.yaml
+new file mode 100644
+index 0000000..2f79f29
+--- /dev/null
++++ b/configs/data/primary.yaml
+@@ -0,0 +1,11 @@
++sources:
++  - name: sid_set
++    root: data/raw/sid_set
++    allowed_labels: [0, 1]
++  - name: wildfake
++    root: data/raw/wildfake
++    allowed_labels: [0, 1]
++    generator_labeled: true
++maximum_corrupt_fraction: 0.01
++require_both_labels: true
++minimum_generator_families: 3
+diff --git a/configs/data/sid_subset.yaml b/configs/data/sid_subset.yaml
+new file mode 100644
+index 0000000..df5afef
+--- /dev/null
++++ b/configs/data/sid_subset.yaml
+@@ -0,0 +1,10 @@
++dataset_id: saberzl/SID_Set
++split: train
++streaming: true
++revision: c1674903d858c78e04809c1c6f2703627ac1a621
++per_class: 10000
++image_field: image
++id_field: img_id
++label_field: label
++images_directory: images
++manifest_name: manifest.parquet
+diff --git a/configs/data/wildfake.yaml b/configs/data/wildfake.yaml
+new file mode 100644
+index 0000000..7d8ab22
+--- /dev/null
++++ b/configs/data/wildfake.yaml
+@@ -0,0 +1,8 @@
++name: wildfake
++root: data/raw/wildfake
++acquisition: manual
++official_repository: https://github.com/hy-zpg/AIGC-Image-Detection-Dataset
++modelscope: https://modelscope.cn/datasets/hy2628982280/WildFake/summary
++allowed_labels: [0, 1]
++generator_labeled: true
++licence_identifier: REQUIRES-VERIFICATION
+diff --git a/src/prooflens/data/acquire.py b/src/prooflens/data/acquire.py
+new file mode 100644
+index 0000000..88b57a0
+--- /dev/null
++++ b/src/prooflens/data/acquire.py
+@@ -0,0 +1,362 @@
++from __future__ import annotations
++
++import hashlib
++import json
++import shutil
++import tempfile
++from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
++from dataclasses import asdict, dataclass
++from pathlib import Path
++from typing import Any
++from uuid import uuid4
++
++import pandas as pd
++import yaml
++from PIL import Image
++
++from prooflens.data.adapters.sid_set import SidSetAdapter
++from prooflens.data.licences import SID_SET
++from prooflens.data.manifest import build_manifest
++from prooflens.data.schema import ManifestRecord
++from prooflens.errors import DatasetAcquisitionError, DatasetPolicyError, UserInputError
++
++WILDFAKE_REPOSITORY_URL = "https://github.com/hy-zpg/AIGC-Image-Detection-Dataset"
++WILDFAKE_MODELSCOPE_URL = "https://modelscope.cn/datasets/hy2628982280/WildFake/summary"
++SID_SET_PINNED_REVISION = "c1674903d858c78e04809c1c6f2703627ac1a621"
++
++
++@dataclass(frozen=True)
++class SidAcquisitionConfig:
++    dataset_id: str = "saberzl/SID_Set"
++    split: str = "train"
++    streaming: bool = True
++    revision: str = SID_SET_PINNED_REVISION
++    per_class: int = 10_000
++    image_field: str = "image"
++    id_field: str = "img_id"
++    label_field: str = "label"
++    images_directory: str = "images"
++    manifest_name: str = "manifest.parquet"
++
++    @classmethod
++    def from_value(
++        cls, value: SidAcquisitionConfig | Mapping[str, Any] | Path
++    ) -> SidAcquisitionConfig:
++        if isinstance(value, cls):
++            result = value
++        else:
++            raw = (
++                yaml.safe_load(value.read_text(encoding="utf-8"))
++                if isinstance(value, Path)
++                else dict(value)
++            )
++            if not isinstance(raw, Mapping):
++                raise UserInputError("SID acquisition configuration must be a mapping")
++            unknown = set(raw) - set(cls.__dataclass_fields__)
++            if unknown:
++                raise UserInputError(
++                    f"unknown SID acquisition configuration keys: {sorted(unknown)}"
++                )
++            result = cls(**raw)
++        if result.dataset_id != "saberzl/SID_Set":
++            raise UserInputError("SID acquisition dataset_id must be saberzl/SID_Set")
++        if result.split != "train" or not result.streaming:
++            raise UserInputError("SID acquisition must stream the train split")
++        if not result.revision.strip():
++            raise UserInputError("SID acquisition revision must be recorded")
++        if result.per_class < 1:
++            raise UserInputError("SID acquisition per_class must be at least 1")
++        return result
++
++
++@dataclass(frozen=True)
++class AcquisitionSummary:
++    output_root: Path
++    manifest_path: Path
++    counts: dict[int, int]
++    dataset_revision: str
++    observed_dataset_revision: str
++    licence_identifier: str
++    config_sha256: str
++
++
++@dataclass(frozen=True)
++class SourcePolicy:
++    name: str
++    root: Path
++    allowed_labels: tuple[int, ...]
++    generator_labeled: bool = False
++
++
++@dataclass(frozen=True)
++class PrimaryManifestPolicy:
++    sources: tuple[SourcePolicy, ...]
++    maximum_corrupt_fraction: float
++    require_both_labels: bool
++    minimum_generator_families: int
++
++
++@dataclass(frozen=True)
++class _RecordAdapter:
++    records: Sequence[ManifestRecord]
++
++    def scan(self) -> Iterator[ManifestRecord]:
++        yield from self.records
++
++
++def select_balanced_binary_rows(
++    rows: Iterable[Mapping[str, Any]], per_class: int
++) -> Iterator[Mapping[str, Any]]:
++    """Yield only binary rows and stop as soon as both class caps are full."""
++    if per_class < 1:
++        raise UserInputError("per_class must be at least 1")
++    counts = {0: 0, 1: 0}
++    for row in rows:
++        try:
++            label = int(row["label"])
++        except (KeyError, TypeError, ValueError) as error:
++            raise DatasetAcquisitionError("SID row has no valid label") from error
++        if label not in counts or counts[label] >= per_class:
++            continue
++        counts[label] += 1
++        yield row
++        if counts == {0: per_class, 1: per_class}:
++            return
++
++
++def hash_acquisition_config(config: Mapping[str, Any] | SidAcquisitionConfig) -> str:
++    """Hash a configuration by canonical JSON, independent of mapping insertion order."""
++    payload = asdict(config) if isinstance(config, SidAcquisitionConfig) else dict(config)
++    canonical = json.dumps(
++        _json_value(payload), sort_keys=True, separators=(",", ":"), ensure_ascii=True
++    )
++    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
++
++
++def acquire_sid_subset(
++    config: SidAcquisitionConfig | Mapping[str, Any] | Path,
++    output_root: Path,
++    *,
++    dataset_loader: Callable[..., Iterable[Mapping[str, Any]]] | None = None,
++) -> AcquisitionSummary:
++    """Stream a complete balanced SID subset into a canonical local manifest."""
++    resolved = SidAcquisitionConfig.from_value(config)
++    output_root = Path(output_root)
++    if output_root.exists():
++        raise UserInputError(f"acquisition output root already exists: {output_root}")
++
++    output_root.parent.mkdir(parents=True, exist_ok=True)
++    staging = Path(
++        tempfile.mkdtemp(prefix=f".{output_root.name}.acquiring-", dir=output_root.parent)
++    )
++    published = False
++    try:
++        loader = dataset_loader or _load_hugging_face_dataset
++        dataset = loader(
++            resolved.dataset_id,
++            split=resolved.split,
++            streaming=True,
++            revision=resolved.revision,
++        )
++        observed_revision = _observed_revision(dataset, resolved.revision)
++        selected = list(select_balanced_binary_rows(dataset, resolved.per_class))
++        counts = {label: sum(int(row[resolved.label_field]) == label for row in selected) for label in (0, 1)}
++        underfilled = [label for label, count in counts.items() if count != resolved.per_class]
++        if underfilled:
++            details = ", ".join(
++                f"label {label}: {counts[label]}/{resolved.per_class}" for label in underfilled
++            )
++            raise DatasetAcquisitionError(f"SID acquisition underfilled {details}")
++
++        rows_for_adapter = _save_selected_images(selected, resolved, staging)
++        records = list(SidSetAdapter(version=resolved.revision).scan_rows(rows_for_adapter))
++        manifest_path = staging / resolved.manifest_name
++        result = build_manifest([_RecordAdapter(records)], manifest_path, max_corrupt_fraction=0.0)
++        if result.valid_count != 2 * resolved.per_class:
++            raise DatasetAcquisitionError(
++                f"SID acquisition produced {result.valid_count} validated rows, "
++                f"expected {2 * resolved.per_class}"
++            )
++
++        config_sha256 = hash_acquisition_config(resolved)
++        metadata = {
++            "config_sha256": config_sha256,
++            "counts": counts,
++            "dataset_id": resolved.dataset_id,
++            "dataset_revision": resolved.revision,
++            "licence_identifier": SID_SET.licence_identifier,
++            "observed_dataset_revision": observed_revision,
++            "split": resolved.split,
++        }
++        _atomic_write_json(staging / "acquisition.json", metadata)
++        staging.replace(output_root)
++        published = True
++        relocated_records = [
++            record.model_copy(
++                update={"path": output_root / record.path.relative_to(staging)}
++            )
++            for record in records
++        ]
++        build_manifest(
++            [_RecordAdapter(relocated_records)],
++            output_root / resolved.manifest_name,
++            max_corrupt_fraction=0.0,
++        )
++    except Exception:
++        shutil.rmtree(staging, ignore_errors=True)
++        if published:
++            shutil.rmtree(output_root, ignore_errors=True)
++        raise
++
++    return AcquisitionSummary(
++        output_root=output_root,
++        manifest_path=output_root / resolved.manifest_name,
++        counts=counts,
++        dataset_revision=resolved.revision,
++        observed_dataset_revision=observed_revision,
++        licence_identifier=SID_SET.licence_identifier,
++        config_sha256=config_sha256,
++    )
++
++
++def validate_wildfake_root(root: Path) -> Path:
++    """Validate a manually obtained WildFake export and explain both official sources."""
++    root = Path(root)
++    if root.is_dir() and any(path.is_file() for path in root.rglob("*")):
++        return root
++    raise DatasetAcquisitionError(
++        f"WildFake export root is missing or empty: {root}. WildFake acquisition is manual. "
++        f"Follow the official repository at {WILDFAKE_REPOSITORY_URL} and obtain the dataset "
++        f"from ModelScope at {WILDFAKE_MODELSCOPE_URL}, then point the configuration root to "
++        "the extracted export."
++    )
++
++
++def load_primary_policy(path: Path) -> PrimaryManifestPolicy:
++    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
++    if not isinstance(raw, Mapping):
++        raise UserInputError("primary manifest policy must be a mapping")
++    sources = tuple(
++        SourcePolicy(
++            name=str(item["name"]),
++            root=Path(item["root"]),
++            allowed_labels=tuple(int(label) for label in item["allowed_labels"]),
++            generator_labeled=bool(item.get("generator_labeled", False)),
++        )
++        for item in raw["sources"]
++    )
++    return PrimaryManifestPolicy(
++        sources=sources,
++        maximum_corrupt_fraction=float(raw["maximum_corrupt_fraction"]),
++        require_both_labels=bool(raw["require_both_labels"]),
++        minimum_generator_families=int(raw["minimum_generator_families"]),
++    )
++
++
++def validate_primary_manifest(frame: pd.DataFrame, policy: PrimaryManifestPolicy) -> None:
++    """Enforce binary labels and the cross-source unseen-generator release gate."""
++    required = {"label", "dataset_name", "generator_family"}
++    missing = required - set(frame.columns)
++    if missing:
++        raise DatasetPolicyError(f"primary manifest is missing columns: {sorted(missing)}")
++
++    approved = {source.name: source for source in policy.sources}
++    unapproved = set(frame["dataset_name"].dropna().astype(str)) - set(approved)
++    if unapproved:
++        raise DatasetPolicyError(f"primary manifest contains unapproved sources: {sorted(unapproved)}")
++    for name, source in approved.items():
++        labels = set(frame.loc[frame["dataset_name"] == name, "label"].astype(int))
++        disallowed = labels - set(source.allowed_labels)
++        if disallowed:
++            raise DatasetPolicyError(f"source {name} contains disallowed labels: {sorted(disallowed)}")
++
++    labels = set(frame["label"].dropna().astype(int))
++    if policy.require_both_labels and labels != {0, 1}:
++        raise DatasetPolicyError("primary manifest must contain both labels 0 and 1")
++
++    generator_sources = {source.name for source in policy.sources if source.generator_labeled}
++    fake = frame[(frame["label"] == 1) & frame["dataset_name"].isin(generator_sources)]
++    families = {
++        str(value).strip()
++        for value in fake["generator_family"].dropna()
++        if str(value).strip()
++    }
++    if len(families) < policy.minimum_generator_families:
++        raise DatasetPolicyError(
++            "primary manifest requires at least "
++            f"{policy.minimum_generator_families} fake generator families across approved "
++            f"generator-labeled sources; found {len(families)}"
++        )
++
++
++def _save_selected_images(
++    selected: Sequence[Mapping[str, Any]], config: SidAcquisitionConfig, staging: Path
++) -> list[dict[str, Any]]:
++    rows: list[dict[str, Any]] = []
++    seen_ids: set[str] = set()
++    for row in selected:
++        image_id = str(row[config.id_field])
++        if image_id in seen_ids:
++            raise DatasetAcquisitionError(f"SID acquisition contains duplicate img_id: {image_id}")
++        seen_ids.add(image_id)
++        label = int(row[config.label_field])
++        image = row.get(config.image_field)
++        if not isinstance(image, Image.Image):
++            raise DatasetAcquisitionError(f"SID row {image_id} has no decoded PIL image")
++        relative = (
++            Path(config.images_directory)
++            / str(label)
++            / f"{hashlib.sha256(image_id.encode('utf-8')).hexdigest()}.png"
++        )
++        destination = staging / relative
++        destination.parent.mkdir(parents=True, exist_ok=True)
++        rgb = image.convert("RGB")
++        rgb.save(destination, format="PNG")
++        rows.append(
++            {
++                "img_id": image_id,
++                "label": label,
++                "image_path": destination,
++                "width": rgb.width,
++                "height": rgb.height,
++                "file_format": "PNG",
++            }
++        )
++    return rows
++
++
++def _observed_revision(dataset: object, fallback: str) -> str:
++    for attribute in ("dataset_revision", "revision", "_revision"):
++        value = getattr(dataset, attribute, None)
++        if value:
++            return str(value)
++    info = getattr(dataset, "info", None)
++    version = getattr(info, "version", None)
++    return str(version) if version else fallback
++
++
++def _load_hugging_face_dataset(dataset_id: str, **kwargs: object):
++    from datasets import load_dataset
++
++    return load_dataset(dataset_id, **kwargs)
++
++
++def _json_value(value: Any) -> Any:
++    if isinstance(value, Path):
++        return value.as_posix()
++    if isinstance(value, Mapping):
++        return {str(key): _json_value(item) for key, item in value.items()}
++    if isinstance(value, (list, tuple)):
++        return [_json_value(item) for item in value]
++    return value
++
++
++def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:
++    text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
++    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
++    try:
++        temporary.write_text(text, encoding="utf-8")
++        temporary.replace(path)
++    finally:
++        if temporary.exists():
++            temporary.unlink()
+diff --git a/src/prooflens/data/audit.py b/src/prooflens/data/audit.py
+new file mode 100644
+index 0000000..106e8a5
+--- /dev/null
++++ b/src/prooflens/data/audit.py
+@@ -0,0 +1,182 @@
++from __future__ import annotations
++
++import json
++from dataclasses import asdict, dataclass
++from pathlib import Path
++from typing import Any
++from uuid import uuid4
++
++import pandas as pd
++
++from prooflens.errors import DatasetPolicyError
++
++_QUANTILES = ((0.0, "min"), (0.25, "q25"), (0.5, "median"), (0.75, "q75"), (1.0, "max"))
++_CATEGORICAL_FEATURES = ("dataset_name", "file_format", "generator_family")
++
++
++@dataclass(frozen=True)
++class AuditReport:
++    row_count: int
++    class_counts: dict[int, int]
++    dataset_counts: dict[str, int]
++    generator_counts: dict[str, int]
++    dimension_quantiles: dict[str, dict[str, float | None]]
++    file_format_crosstab: dict[str, dict[int, int]]
++    missing_counts: dict[str, int]
++    exact_duplicate_count: int
++    perfect_shortcuts: tuple[str, ...]
++
++
++def audit_manifest(frame: pd.DataFrame) -> AuditReport:
++    """Summarize distributions and categorical label shortcuts in a manifest."""
++    required = {"label", "dataset_name", "generator_family", "file_format", "width", "height"}
++    missing = required - set(frame.columns)
++    if missing:
++        raise DatasetPolicyError(f"audit manifest is missing columns: {sorted(missing)}")
++
++    class_counts = {
++        int(key): int(value)
++        for key, value in frame["label"].value_counts().sort_index().items()
++    }
++    dataset_counts = _string_counts(frame["dataset_name"])
++    generator_counts = _string_counts(frame["generator_family"])
++    dimension_quantiles = {
++        column: _dimension_quantiles(frame[column]) for column in ("width", "height")
++    }
++    file_format_crosstab = _format_crosstab(frame)
++    missing_counts = {
++        column: _missing_count(frame[column]) for column in sorted(frame.columns)
++    }
++
++    if "content_checksum" in frame:
++        checksums = _observed_strings(frame["content_checksum"])
++        exact_duplicate_count = int(checksums.duplicated().sum())
++    else:
++        missing_counts["content_checksum"] = len(frame)
++        exact_duplicate_count = 0
++
++    perfect_shortcuts = tuple(
++        column
++        for column in _CATEGORICAL_FEATURES
++        if _perfectly_predicts_label(frame, column)
++    )
++    return AuditReport(
++        row_count=len(frame),
++        class_counts=class_counts,
++        dataset_counts=dataset_counts,
++        generator_counts=generator_counts,
++        dimension_quantiles=dimension_quantiles,
++        file_format_crosstab=file_format_crosstab,
++        missing_counts=missing_counts,
++        exact_duplicate_count=exact_duplicate_count,
++        perfect_shortcuts=perfect_shortcuts,
++    )
++
++
++def write_audit(report: AuditReport, output_dir: Path) -> tuple[Path, Path]:
++    """Write machine-readable and human-readable audit artifacts atomically."""
++    output_dir.mkdir(parents=True, exist_ok=True)
++    json_path = output_dir / "audit.json"
++    markdown_path = output_dir / "audit.md"
++    json_text = json.dumps(asdict(report), indent=2, sort_keys=True, allow_nan=False) + "\n"
++    markdown_text = render_audit_markdown(report)
++    _atomic_write_text(json_path, json_text)
++    _atomic_write_text(markdown_path, markdown_text)
++    return json_path, markdown_path
++
++
++def render_audit_markdown(report: AuditReport) -> str:
++    lines = ["# Manifest audit", "", f"## Row count\n\n{report.row_count}"]
++    lines.extend(_mapping_section("Class counts", report.class_counts))
++    lines.extend(_mapping_section("Dataset counts", report.dataset_counts))
++    lines.extend(_mapping_section("Generator counts", report.generator_counts))
++    lines.extend(["", "## Dimension quantiles", ""])
++    for dimension, values in report.dimension_quantiles.items():
++        rendered = ", ".join(f"{name}={value}" for name, value in values.items())
++        lines.append(f"- {dimension}: {rendered}")
++    lines.extend(["", "## File format by label", "", "| Format | Label 0 | Label 1 |", "| --- | ---: | ---: |"])
++    lines.extend(
++        f"| {name} | {counts.get(0, 0)} | {counts.get(1, 0)} |"
++        for name, counts in report.file_format_crosstab.items()
++    )
++    lines.extend(_mapping_section("Missing metadata", report.missing_counts))
++    lines.extend(["", "## Exact duplicates", "", str(report.exact_duplicate_count)])
++    lines.extend(["", "## Perfect label shortcuts", ""])
++    lines.extend(f"- {name}" for name in report.perfect_shortcuts)
++    if not report.perfect_shortcuts:
++        lines.append("None")
++    return "\n".join(lines) + "\n"
++
++
++def _dimension_quantiles(series: pd.Series) -> dict[str, float | None]:
++    numeric = pd.to_numeric(series, errors="coerce")
++    values = numeric.quantile([quantile for quantile, _ in _QUANTILES])
++    return {
++        name: None if pd.isna(values.loc[quantile]) else float(values.loc[quantile])
++        for quantile, name in _QUANTILES
++    }
++
++
++def _format_crosstab(frame: pd.DataFrame) -> dict[str, dict[int, int]]:
++    observed = frame.loc[
++        ~_missing_mask(frame["file_format"]) & frame["label"].isin((0, 1)),
++        ["file_format", "label"],
++    ].copy()
++    if observed.empty:
++        return {}
++    observed["file_format"] = observed["file_format"].astype(str).str.strip()
++    table = pd.crosstab(observed["file_format"], observed["label"])
++    return {
++        str(name): {label: int(table.loc[name].get(label, 0)) for label in (0, 1)}
++        for name in sorted(table.index.astype(str))
++    }
++
++
++def _perfectly_predicts_label(frame: pd.DataFrame, column: str) -> bool:
++    if column not in frame or frame.empty:
++        return False
++    mask = ~_missing_mask(frame[column]) & frame["label"].isin((0, 1))
++    observed = frame.loc[mask, [column, "label"]].copy()
++    if len(observed) < 2:
++        return False
++    observed[column] = observed[column].astype(str).str.strip()
++    if observed[column].nunique() < 2 or observed["label"].nunique() != 2:
++        return False
++    return bool(observed.groupby(column, dropna=False)["label"].nunique().max() == 1)
++
++
++def _string_counts(series: pd.Series) -> dict[str, int]:
++    return {
++        str(key): int(value)
++        for key, value in _observed_strings(series).value_counts().items()
++    }
++
++
++def _observed_strings(series: pd.Series) -> pd.Series:
++    return series.loc[~_missing_mask(series)].astype(str).str.strip()
++
++
++def _missing_count(series: pd.Series) -> int:
++    return int(_missing_mask(series).sum())
++
++
++def _missing_mask(series: pd.Series) -> pd.Series:
++    return series.isna() | series.fillna("").astype(str).str.strip().eq("")
++
++
++def _mapping_section(title: str, values: dict[Any, Any]) -> list[str]:
++    lines = ["", f"## {title}", ""]
++    lines.extend(f"- {key}: {value}" for key, value in values.items())
++    if not values:
++        lines.append("None")
++    return lines
++
++
++def _atomic_write_text(path: Path, text: str) -> None:
++    temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
++    try:
++        temporary.write_text(text, encoding="utf-8")
++        temporary.replace(path)
++    finally:
++        if temporary.exists():
++            temporary.unlink()
+diff --git a/src/prooflens/errors.py b/src/prooflens/errors.py
+index d253b5b..18314b9 100644
+--- a/src/prooflens/errors.py
++++ b/src/prooflens/errors.py
+@@ -3,20 +3,28 @@ class ProofLensError(Exception):
+ 
+ 
+ class UserInputError(ProofLensError):
+     """The user supplied an invalid argument or input image."""
+ 
+ 
+ class DataIntegrityError(ProofLensError):
+     """Dataset contents violate a required invariant."""
+ 
+ 
++class DatasetAcquisitionError(DataIntegrityError):
++    """Dataset acquisition could not produce the requested complete subset."""
++
++
++class DatasetPolicyError(DataIntegrityError):
++    """Dataset contents violate an approved source policy."""
++
++
+ class ManifestBuildError(DataIntegrityError):
+     """A canonical manifest could not be built safely."""
+ 
+ 
+ class ImageDecodeError(DataIntegrityError):
+     """An image cannot be decoded as RGB pixels."""
+ 
+ 
+ class LeakageError(DataIntegrityError):
+     """Related source groups occur in multiple partitions."""
+diff --git a/tests/unit/data/test_acquire.py b/tests/unit/data/test_acquire.py
+new file mode 100644
+index 0000000..41e12e9
+--- /dev/null
++++ b/tests/unit/data/test_acquire.py
+@@ -0,0 +1,207 @@
++import json
++from pathlib import Path
++from typing import Any
++
++import pandas as pd
++import pytest
++import yaml
++from PIL import Image
++
++from prooflens.data.acquire import (
++    SidAcquisitionConfig,
++    acquire_sid_subset,
++    hash_acquisition_config,
++    load_primary_policy,
++    select_balanced_binary_rows,
++    validate_primary_manifest,
++    validate_wildfake_root,
++)
++from prooflens.data.schema import MANIFEST_COLUMNS
++from prooflens.errors import DataIntegrityError, UserInputError
++
++
++class TinyStreamingDataset:
++    dataset_revision = "observed-revision-987"
++
++    def __init__(self, rows: list[dict[str, Any]]) -> None:
++        self.rows = rows
++
++    def __iter__(self):
++        yield from self.rows
++
++
++def _sid_row(image_id: str, label: int, color: str) -> dict[str, Any]:
++    return {"img_id": image_id, "label": label, "image": Image.new("RGBA", (5, 4), color)}
++
++
++def test_balanced_selector_stops_exactly_at_per_class_cap() -> None:
++    rows = (
++        {"img_id": f"{label}-{index}", "label": label}
++        for index in range(10)
++        for label in (0, 1, 2)
++    )
++
++    selected = list(select_balanced_binary_rows(rows, per_class=3))
++
++    assert [row["label"] for row in selected].count(0) == 3
++    assert [row["label"] for row in selected].count(1) == 3
++    assert len(selected) == 6
++    assert all(row["label"] in (0, 1) for row in selected)
++
++
++def test_acquire_sid_subset_persists_rgb_images_manifest_and_metadata(tmp_path: Path) -> None:
++    rows = [
++        _sid_row("real/id", 0, "white"),
++        _sid_row("tampered", 2, "red"),
++        _sid_row("fake:id", 1, "black"),
++        _sid_row("unused-real", 0, "blue"),
++    ]
++
++    def loader(dataset_id: str, **kwargs: object) -> TinyStreamingDataset:
++        if dataset_id != "saberzl/SID_Set":
++            raise AssertionError("unexpected dataset")
++        if kwargs != {"split": "train", "streaming": True, "revision": "pinned-123"}:
++            raise AssertionError("streaming contract changed")
++        return TinyStreamingDataset(rows)
++
++    output_root = tmp_path / "sid"
++    summary = acquire_sid_subset(
++        {"revision": "pinned-123", "per_class": 1},
++        output_root,
++        dataset_loader=loader,
++    )
++
++    frame = pd.read_parquet(summary.manifest_path)
++    metadata = json.loads((output_root / "acquisition.json").read_text(encoding="utf-8"))
++    assert tuple(frame.columns) == MANIFEST_COLUMNS
++    assert set(frame["sample_id"]) == {"real/id", "fake:id"}
++    assert frame["label"].value_counts().sort_index().to_dict() == {0: 1, 1: 1}
++    assert all(Path(path).is_file() for path in frame["path"])
++    assert all(Image.open(path).mode == "RGB" for path in frame["path"])
++    assert summary.counts == {0: 1, 1: 1}
++    assert summary.dataset_revision == "pinned-123"
++    assert summary.observed_dataset_revision == "observed-revision-987"
++    assert metadata == {
++        "config_sha256": summary.config_sha256,
++        "counts": {"0": 1, "1": 1},
++        "dataset_id": "saberzl/SID_Set",
++        "dataset_revision": "pinned-123",
++        "licence_identifier": "CC-BY-4.0",
++        "observed_dataset_revision": "observed-revision-987",
++        "split": "train",
++    }
++
++
++def test_acquire_sid_subset_rejects_underfilled_stream_without_partial_output(
++    tmp_path: Path,
++) -> None:
++    def loader(dataset_id: str, **kwargs: object) -> TinyStreamingDataset:
++        return TinyStreamingDataset([_sid_row("only-real", 0, "white")])
++
++    output_root = tmp_path / "underfilled"
++
++    with pytest.raises(DataIntegrityError, match="underfilled.*label 1"):
++        acquire_sid_subset(
++            {"revision": "pinned-123", "per_class": 1},
++            output_root,
++            dataset_loader=loader,
++        )
++
++    assert not output_root.exists()
++
++
++def test_acquire_sid_subset_refuses_to_overwrite_existing_root(tmp_path: Path) -> None:
++    output_root = tmp_path / "sid"
++    output_root.mkdir()
++    marker = output_root / "keep.txt"
++    marker.write_text("keep", encoding="utf-8")
++
++    with pytest.raises(UserInputError, match="already exists"):
++        acquire_sid_subset({"revision": "pinned-123", "per_class": 1}, output_root)
++
++    assert marker.read_text(encoding="utf-8") == "keep"
++
++
++def test_config_hash_is_deterministic_across_mapping_order() -> None:
++    first = {"revision": "abc", "per_class": 2, "split": "train"}
++    second = {"split": "train", "per_class": 2, "revision": "abc"}
++
++    assert hash_acquisition_config(first) == hash_acquisition_config(second)
++    assert len(hash_acquisition_config(first)) == 64
++
++
++def test_missing_wildfake_root_points_to_official_repository_and_modelscope(
++    tmp_path: Path,
++) -> None:
++    with pytest.raises(DataIntegrityError) as caught:
++        validate_wildfake_root(tmp_path / "missing")
++
++    message = str(caught.value)
++    assert "https://github.com/hy-zpg/AIGC-Image-Detection-Dataset" in message
++    assert "https://modelscope.cn/datasets/hy2628982280/WildFake/summary" in message
++    assert "manual" in message.lower()
++
++
++def test_validate_wildfake_root_accepts_a_nonempty_export(tmp_path: Path) -> None:
++    export = tmp_path / "wildfake"
++    (export / "real").mkdir(parents=True)
++    (export / "real" / "one.jpg").write_bytes(b"fixture")
++
++    assert validate_wildfake_root(export) == export
++
++
++def test_primary_policy_has_top_level_three_family_gate_and_excludes_cifake() -> None:
++    policy_path = Path("configs/data/primary.yaml")
++    raw = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
++
++    assert raw["minimum_generator_families"] == 3
++    assert all("minimum_generator_families" not in source for source in raw["sources"])
++    assert {source["name"] for source in raw["sources"]} == {"sid_set", "wildfake"}
++    assert load_primary_policy(policy_path).minimum_generator_families == 3
++
++
++def test_dataset_configs_pin_sid_defaults_and_keep_cifake_stress_only() -> None:
++    sid = yaml.safe_load(Path("configs/data/sid_subset.yaml").read_text(encoding="utf-8"))
++    cifake = yaml.safe_load(Path("configs/data/cifake.yaml").read_text(encoding="utf-8"))
++
++    assert sid["per_class"] == 10_000
++    assert len(sid["revision"]) == 40
++    assert SidAcquisitionConfig().revision == sid["revision"]
++    assert cifake["stress_only"] is True
++    assert cifake["include_in_primary_training"] is False
++
++
++def test_primary_policy_rejects_missing_label_and_too_few_fake_families() -> None:
++    policy = load_primary_policy(Path("configs/data/primary.yaml"))
++    missing_real = pd.DataFrame(
++        {
++            "label": [1, 1, 1],
++            "dataset_name": ["wildfake"] * 3,
++            "generator_family": ["flux", "sdxl", "dalle3"],
++        }
++    )
++    with pytest.raises(DataIntegrityError, match="both labels"):
++        validate_primary_manifest(missing_real, policy)
++
++    two_families = pd.DataFrame(
++        {
++            "label": [0, 1, 1],
++            "dataset_name": ["sid_set", "wildfake", "wildfake"],
++            "generator_family": ["authentic", "flux", "sdxl"],
++        }
++    )
++    with pytest.raises(DataIntegrityError, match="at least 3.*found 2"):
++        validate_primary_manifest(two_families, policy)
++
++
++def test_primary_policy_counts_generator_families_across_approved_sources() -> None:
++    policy = load_primary_policy(Path("configs/data/primary.yaml"))
++    frame = pd.DataFrame(
++        {
++            "label": [0, 1, 1, 1, 1],
++            "dataset_name": ["sid_set", "sid_set", "wildfake", "wildfake", "wildfake"],
++            "generator_family": ["authentic", "generated", "flux", "sdxl", "dalle3"],
++        }
++    )
++
++    validate_primary_manifest(frame, policy)
+diff --git a/tests/unit/data/test_audit.py b/tests/unit/data/test_audit.py
+new file mode 100644
+index 0000000..ba6fb50
+--- /dev/null
++++ b/tests/unit/data/test_audit.py
+@@ -0,0 +1,107 @@
++import json
++from pathlib import Path
++
++import pandas as pd
++
++from prooflens.data.audit import audit_manifest, write_audit
++
++
++def _audit_frame() -> pd.DataFrame:
++    return pd.DataFrame(
++        {
++            "label": [0, 0, 1, 1, 1],
++            "dataset_name": ["sid", "sid", "wild", "wild", "wild"],
++            "generator_family": ["authentic", "authentic", "flux", "sdxl", "sdxl"],
++            "file_format": ["PNG", "PNG", "JPEG", "JPEG", "PNG"],
++            "width": [100, 200, 300, 400, 500],
++            "height": [50, 100, 150, 200, 250],
++            "content_checksum": ["a", "b", "c", "c", ""],
++            "optional_metadata": ["known", None, "", "known", "known"],
++        }
++    )
++
++
++def test_audit_contains_all_required_distribution_and_duplicate_fields() -> None:
++    report = audit_manifest(_audit_frame())
++
++    assert report.row_count == 5
++    assert report.class_counts == {0: 2, 1: 3}
++    assert report.dataset_counts == {"wild": 3, "sid": 2}
++    assert report.generator_counts == {"authentic": 2, "sdxl": 2, "flux": 1}
++    assert report.dimension_quantiles == {
++        "width": {"min": 100.0, "q25": 200.0, "median": 300.0, "q75": 400.0, "max": 500.0},
++        "height": {"min": 50.0, "q25": 100.0, "median": 150.0, "q75": 200.0, "max": 250.0},
++    }
++    assert report.file_format_crosstab == {"JPEG": {0: 0, 1: 2}, "PNG": {0: 2, 1: 1}}
++    assert report.missing_counts["optional_metadata"] == 2
++    assert report.missing_counts["content_checksum"] == 1
++    assert report.exact_duplicate_count == 1
++    assert "dataset_name" in report.perfect_shortcuts
++
++
++def test_perfect_shortcuts_require_meaningful_observed_categories() -> None:
++    frame = pd.DataFrame(
++        {
++            "label": [0, 1, 0, 1],
++            "dataset_name": [None, None, None, None],
++            "generator_family": ["", "", "", ""],
++            "file_format": ["PNG", "PNG", "PNG", "PNG"],
++            "width": [1, 1, 1, 1],
++            "height": [1, 1, 1, 1],
++        }
++    )
++
++    report = audit_manifest(frame)
++
++    assert report.perfect_shortcuts == ()
++    assert report.exact_duplicate_count == 0
++    assert report.missing_counts["content_checksum"] == 4
++
++
++def test_empty_audit_is_safe_and_does_not_report_shortcuts() -> None:
++    frame = pd.DataFrame(
++        columns=["label", "dataset_name", "generator_family", "file_format", "width", "height"]
++    )
++
++    report = audit_manifest(frame)
++
++    assert report.row_count == 0
++    assert report.perfect_shortcuts == ()
++    assert report.exact_duplicate_count == 0
++    assert report.dimension_quantiles == {
++        "width": {"min": None, "q25": None, "median": None, "q75": None, "max": None},
++        "height": {"min": None, "q25": None, "median": None, "q75": None, "max": None},
++    }
++
++
++def test_write_audit_round_trips_json_and_required_markdown_sections(tmp_path: Path) -> None:
++    report = audit_manifest(_audit_frame())
++
++    json_path, markdown_path = write_audit(report, tmp_path / "report")
++
++    payload = json.loads(json_path.read_text(encoding="utf-8"))
++    markdown = markdown_path.read_text(encoding="utf-8")
++    assert set(payload) == {
++        "row_count",
++        "class_counts",
++        "dataset_counts",
++        "generator_counts",
++        "dimension_quantiles",
++        "file_format_crosstab",
++        "missing_counts",
++        "exact_duplicate_count",
++        "perfect_shortcuts",
++    }
++    assert payload["file_format_crosstab"]["JPEG"] == {"0": 0, "1": 2}
++    for heading in (
++        "Row count",
++        "Class counts",
++        "Dataset counts",
++        "Generator counts",
++        "Dimension quantiles",
++        "File format by label",
++        "Missing metadata",
++        "Exact duplicates",
++        "Perfect label shortcuts",
++    ):
++        assert heading in markdown
