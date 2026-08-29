@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from uuid import uuid4
 
 import pandas as pd
+import torch
+from torch import Tensor, nn
 
+from prooflens.data.collate import PairedBatch
+from prooflens.data.transforms import get_spec
 from prooflens.errors import MetricPartitionError
 
 PREDICTION_COLUMNS = (
@@ -50,7 +54,11 @@ class PredictionRecord:
             "checkpoint_id",
         ):
             _require_text(getattr(self, field), field)
-        if not isinstance(self.label, int) or isinstance(self.label, bool) or self.label not in (0, 1):
+        if (
+            not isinstance(self.label, int)
+            or isinstance(self.label, bool)
+            or self.label not in (0, 1)
+        ):
             raise MetricPartitionError("prediction label must be a binary integer")
         if not isinstance(self.logit, (int, float)) or isinstance(self.logit, bool):
             raise MetricPartitionError("prediction logit must be a finite number")
@@ -144,6 +152,70 @@ def write_predictions(records: Sequence[PredictionRecord], output_path: Path) ->
         if temporary_path.exists():
             temporary_path.unlink()
     return output_path
+
+
+def predict_loader(
+    model: nn.Module,
+    loader: Iterable[PairedBatch],
+    *,
+    checkpoint_id: str,
+    device: str | torch.device = "cpu",
+    condition_override: str | None = None,
+) -> pd.DataFrame:
+    """Predict clean and transformed rows from paired evaluation batches."""
+
+    if not isinstance(model, nn.Module):
+        raise TypeError("prediction model must be a torch.nn.Module")
+    target_device = torch.device(device)
+    model = model.to(target_device).eval()
+    records: list[PredictionRecord] = []
+    with torch.inference_mode():
+        for batch in loader:
+            if not isinstance(batch, PairedBatch):
+                raise TypeError("prediction loader must yield PairedBatch values")
+            batch_size = len(batch.sample_ids)
+            clean_logits = _batch_logits(model(batch.clean_pixels.to(target_device)), batch_size)
+            transformed_logits = _batch_logits(
+                model(batch.transformed_pixels.to(target_device)), batch_size
+            )
+            for index, sample_id in enumerate(batch.sample_ids):
+                common = {
+                    "sample_id": sample_id,
+                    "label": int(batch.labels[index].item()),
+                    "split": batch.splits[index],
+                    "generator_family": batch.generator_families[index],
+                    "checkpoint_id": checkpoint_id,
+                }
+                records.append(
+                    PredictionRecord.from_logit(
+                        **common,
+                        logit=float(clean_logits[index]),
+                        transform_family="clean",
+                        condition_id="clean",
+                    )
+                )
+                condition_id = condition_override or batch.condition_ids[index]
+                transform_family = (
+                    "clean" if condition_id == "clean" else get_spec(condition_id).family
+                )
+                records.append(
+                    PredictionRecord.from_logit(
+                        **common,
+                        logit=float(transformed_logits[index]),
+                        transform_family=transform_family,
+                        condition_id=condition_id,
+                    )
+                )
+    return records_to_frame(records)
+
+
+def _batch_logits(output: object, batch_size: int) -> Tensor:
+    logits = output if isinstance(output, Tensor) else getattr(output, "logits", None)
+    if not isinstance(logits, Tensor) or logits.shape != (batch_size,):
+        raise MetricPartitionError("prediction model must return one logit per image")
+    if not logits.is_floating_point() or not torch.isfinite(logits).all().item():
+        raise MetricPartitionError("prediction model logits must be finite floating values")
+    return logits.detach().to(device="cpu", dtype=torch.float32)
 
 
 def _require_text(value: object, field: str) -> str:
