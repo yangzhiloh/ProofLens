@@ -4,6 +4,31 @@ import logging
 
 import pytest
 import torch
+from PIL import Image
+from torch import nn
+
+from prooflens.data.dataset import SourceItem
+from prooflens.models.types import DetectorOutput
+
+
+class FakeProcessor:
+    def __call__(self, *, images, return_tensors: str):
+        assert return_tensors == "pt"
+        values = [torch.full((3, 224, 224), image.getpixel((0, 0))[0] / 255) for image in images]
+        return {"pixel_values": torch.stack(values)}
+
+
+class RecordingDetector(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.scale = nn.Parameter(torch.tensor(1.0))
+        self.grad_modes: list[bool] = []
+
+    def forward(self, pixels: torch.Tensor) -> DetectorOutput:
+        self.grad_modes.append(torch.is_grad_enabled())
+        logits = pixels.mean(dim=(1, 2, 3)) * self.scale
+        features = torch.stack((logits, logits + 1), dim=1)
+        return DetectorOutput(logits=logits, features=features)
 
 
 def test_select_lowest_margin_uses_each_samples_correct_class() -> None:
@@ -97,3 +122,46 @@ def test_family_proportions_warn_when_selection_collapses(
     assert proportions["selected"]["jpeg"] == pytest.approx(1.0)
     assert "exceeds 60 percent" in caplog.text
     assert miner.epoch_family_proportions()["selected"] == {}
+
+
+def test_hard_mining_candidates_are_no_grad_and_selected_view_backpropagates() -> None:
+    from prooflens.data.transforms import canonical_specs
+    from prooflens.training.hard_mining import (
+        HardMiningCollator,
+        HardTransformMiner,
+        compute_hard_mined_loss,
+    )
+
+    items = tuple(
+        SourceItem(
+            image=Image.new("RGB", (8, 8), (50 + index * 100, 20, 10)),
+            label=index,
+            sample_id=f"sample-{index}",
+            dataset_name="fixture",
+            generator_family="authentic" if index == 0 else "generator",
+            source_group_id=f"source-{index}",
+            split="train",
+            split_group_id=f"group-{index}",
+        )
+        for index in range(2)
+    )
+    processor = FakeProcessor()
+    batch = HardMiningCollator(processor=processor)(items)
+    model = RecordingDetector()
+    miner = HardTransformMiner(
+        canonical_specs(), seed=17, candidate_count=3, exploration_probability=0.0
+    )
+
+    result = compute_hard_mined_loss(
+        model=model,
+        batch=batch,
+        processor=processor,
+        miner=miner,
+        epoch=1,
+        device="cpu",
+    )
+    result.total.backward()
+
+    assert model.grad_modes == [False, True, True]
+    assert model.scale.grad is not None
+    assert result.total.isfinite()

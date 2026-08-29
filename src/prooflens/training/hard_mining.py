@@ -4,14 +4,53 @@ import logging
 import random
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 import torch
+from PIL import Image
 from torch import Tensor
 
+from prooflens.data.dataset import SourceItem
 from prooflens.data.sampling import stable_seed
-from prooflens.data.transforms import TransformSpec, get_spec
+from prooflens.data.transforms import TransformSpec, apply_transform, get_spec
+from prooflens.inference.preprocess import ImageProcessor, preprocess_images
+from prooflens.models.types import LossBreakdown
+from prooflens.training.losses import (
+    DEFAULT_SURVIVAL_LOSS_WEIGHTS,
+    SurvivalLossWeights,
+    compute_survival_loss,
+)
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class HardMiningBatch:
+    clean_pixels: Tensor
+    images: tuple[Image.Image, ...]
+    labels: Tensor
+    sample_ids: tuple[str, ...]
+
+
+class HardMiningCollator:
+    def __init__(self, *, processor: ImageProcessor) -> None:
+        self.processor = processor
+        self.epoch = 0
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = epoch
+
+    def __call__(self, items: Sequence[SourceItem]) -> HardMiningBatch:
+        batch = tuple(items)
+        if not batch:
+            raise ValueError("hard-mining collation requires a nonempty batch")
+        images = tuple(item.image.copy() for item in batch)
+        return HardMiningBatch(
+            clean_pixels=preprocess_images(images, processor=self.processor),
+            images=images,
+            labels=torch.tensor([item.label for item in batch], dtype=torch.float32),
+            sample_ids=tuple(item.sample_id for item in batch),
+        )
 
 
 def select_lowest_margin(
@@ -113,6 +152,64 @@ class HardTransformMiner:
             self._candidate_families.clear()
             self._selected_families.clear()
         return result
+
+
+def compute_hard_mined_loss(
+    *,
+    model: torch.nn.Module,
+    batch: HardMiningBatch,
+    processor: ImageProcessor,
+    miner: HardTransformMiner,
+    epoch: int,
+    device: str,
+    weights: SurvivalLossWeights = DEFAULT_SURVIVAL_LOSS_WEIGHTS,
+) -> LossBreakdown:
+    candidates = miner.sample_candidates(batch.sample_ids, epoch)
+    candidate_images = tuple(
+        apply_transform(
+            image,
+            spec,
+            stable_seed(miner.seed, epoch, sample_id, spec.condition_id),
+        )
+        for image, sample_id, specs in zip(
+            batch.images, batch.sample_ids, candidates, strict=True
+        )
+        for spec in specs
+    )
+    candidate_pixels = preprocess_images(
+        candidate_images, processor=processor
+    ).to(device)
+    with torch.no_grad():
+        candidate_logits = model(candidate_pixels).logits.reshape(
+            len(batch.labels), miner.candidate_count
+        )
+    condition_rows = tuple(
+        tuple(spec.condition_id for spec in specs) for specs in candidates
+    )
+    selected_ids = miner.select(
+        candidate_logits,
+        condition_rows,
+        batch.labels.to(device),
+        batch.sample_ids,
+        epoch,
+    )
+    selected_images = tuple(
+        apply_transform(
+            image,
+            get_spec(condition_id),
+            stable_seed(miner.seed, epoch, sample_id, condition_id),
+        )
+        for image, sample_id, condition_id in zip(
+            batch.images, batch.sample_ids, selected_ids, strict=True
+        )
+    )
+    clean = model(batch.clean_pixels.to(device))
+    transformed = model(
+        preprocess_images(selected_images, processor=processor).to(device)
+    )
+    return compute_survival_loss(
+        clean, transformed, batch.labels.to(device), weights
+    )
 
 
 def _proportions(counts: Counter[str]) -> dict[str, float]:
