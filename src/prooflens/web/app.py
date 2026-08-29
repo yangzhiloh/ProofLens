@@ -8,7 +8,7 @@ from PIL import Image
 
 from prooflens.data.transforms import apply_transform, canonical_specs, get_spec
 from prooflens.errors import UserInputError
-from prooflens.inference.service import InferenceService
+from prooflens.inference.service import InferenceService, Prediction
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,11 +59,28 @@ def analyze_upload(
         transformed_image=transformed_image,
         summary={
             "condition": condition_id,
-            "clean": asdict(stability.clean),
-            "transformed": asdict(stability.transformed),
+            "transform_parameters": dict(spec.parameters),
+            "operating_threshold": service.operating_threshold,
+            "model_version": stability.clean.model_version,
+            "preprocessing_version": stability.clean.preprocessing_version,
+            "clean": _prediction_summary(stability.clean, service.operating_threshold),
+            "transformed": _prediction_summary(
+                stability.transformed, service.operating_threshold
+            ),
             "absolute_change": stability.absolute_change,
         },
     )
+
+
+def _prediction_summary(prediction: Prediction, operating_threshold: float) -> dict[str, object]:
+    """Return one prediction with its threshold-relative demo label."""
+
+    return {
+        **asdict(prediction),
+        "threshold_label": (
+            "AI-generated" if prediction.probability_ai >= operating_threshold else "Authentic"
+        ),
+    }
 
 
 def create_app(service: InferenceService):
