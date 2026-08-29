@@ -3,7 +3,10 @@ from __future__ import annotations
 import io
 
 import numpy as np
+import pytest
 from PIL import Image
+
+from prooflens.errors import UserInputError
 
 
 def _detail_image() -> Image.Image:
@@ -30,6 +33,14 @@ def test_stress_registry_has_the_four_secondary_conditions() -> None:
         "screenshot_1440",
         "screenshot_1080",
     )
+
+
+@pytest.mark.parametrize("parameters", [{}, {"quality": 50}, None])
+def test_stress_specs_reject_missing_or_mismatched_fixed_parameters(parameters: object) -> None:
+    from prooflens.data.stress_transforms import StressTransformSpec
+
+    with pytest.raises(UserInputError, match="stress transform spec"):
+        StressTransformSpec("webp_q80", parameters)  # type: ignore[arg-type]
 
 
 def test_stress_transforms_are_rgb_dimension_preserving_repeatable_and_visible() -> None:
