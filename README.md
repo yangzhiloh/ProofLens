@@ -1,146 +1,218 @@
 # ProofLens
 
-ProofLens is a robustness-oriented research demo for scoring whether an image is authentic or
-AI-generated. It compares a clean prediction with a transformed version of the same image and
-reports how stable the score is.
+ProofLens is a research prototype for binary image classification between authentic and
+AI-generated images. Its committed design evaluates whether predictions survive JPEG
+compression, blur, resizing, noise, color jitter, and center cropping. It also keeps complete
+generator families out of training for unseen-generator evaluation.
 
-> [!IMPORTANT]
-> ProofLens scores are not forensic proof. The repository can generate a small fixture model for
-> testing the workflow, but that model is not a production detector and must not be presented as
-> one.
+## Release status
 
-## Run the local fixture demo
+The implementation, tests, configuration files, miniature offline workflow, ONNX parity gate,
+and local Gradio interface are present. Primary-dataset E0 through E4 experiments have not yet
+been executed in this release branch. Primary measured results and distributable model weights
+are unavailable until Task 7 of the remaining-work plan completes. The miniature fixture
+workflow is a software reproducibility check, not evidence of primary-model performance.
 
-The fixture workflow is deterministic, uses generated images, and does not download a model or
-dataset. It verifies training, calibration, ONNX export, CPU parity, and the Gradio interface.
+## Requirements
+
+- Python 3.11 or 3.12, as declared by `pyproject.toml`
+- Git for the tracked-file release check
+- Network access for SID-Set acquisition and the first DINOv2 download
+- Manually obtained WildFake data whose terms have been reviewed by the user
+
+CUDA is not required by the code or CI. CI exercises Python 3.11 on Windows and Linux with CPU
+tests. OpenVINO is optional.
+
+## Installation
 
 ### Windows PowerShell
 
-From the repository directory:
-
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
-.\.venv\Scripts\python.exe scripts/reproduce_small.py --output artifacts/demo --experiment e3 --publish-demo-artifacts
-.\.venv\Scripts\python.exe -m prooflens.cli app --backend onnx --model artifacts/demo/export/model.onnx --calibration artifacts/demo/export/calibration.json
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\Activate.ps1
 ```
 
-If `python` and the Windows `py` launcher are unavailable inside Codex, use the bundled runtime for
-the first command:
-
-```powershell
-& "$env:USERPROFILE\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -m venv .venv
-```
-
-Open <http://127.0.0.1:7860> after Gradio prints the local address. Stop the server with `Ctrl+C`.
-
-### Linux or macOS
+### Linux shell
 
 ```bash
-python3.12 -m venv .venv
-.venv/bin/python -m pip install -e .
-.venv/bin/python scripts/reproduce_small.py --output artifacts/demo --experiment e3 --publish-demo-artifacts
-.venv/bin/python -m prooflens.cli app --backend onnx --model artifacts/demo/export/model.onnx --calibration artifacts/demo/export/calibration.json
+python3.11 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -e '.[dev]'
+source .venv/bin/activate
 ```
 
-## Generated demo artifacts
+The remaining commands assume the virtual environment is active and use the same `python`
+entry point on both systems.
 
-The miniature publication command creates:
+## Fast offline reproduction
+
+This one command creates deterministic fixture images, a manifest and grouped split, trains a
+small randomly initialized DINOv2-shaped model for one epoch, evaluates canonical conditions,
+and writes metrics and a robustness table. It downloads no dataset or pretrained weight.
 
 ```text
-artifacts/demo/
-├── selection.json
-├── export/
-│   ├── calibration.json
-│   ├── artifact_manifest.json
-│   ├── export_report.json
-│   └── model.onnx
-├── run/
-│   ├── config.yaml
-│   ├── predictions-validation.parquet
-│   └── checkpoints/best.pt
-└── report/
-    ├── metrics.json
-    ├── robustness.md
-    └── auc.png
+python scripts/reproduce_small.py --output artifacts/release-smoke --experiment e4
 ```
 
-`selection.json` identifies these files as `deterministic-fixture-demo`.
-`artifact_manifest.json` binds the model, calibration, preprocessing version, and SHA-256 hashes.
-Its versioned contract is documented by
-[`schemas/artifact-manifest-v1.schema.json`](schemas/artifact-manifest-v1.schema.json). Version 1
-requires portable bundle-relative paths and lowercase SHA-256 digests; unknown schema versions,
-malformed entries, mixed artifacts, and paths escaping the bundle root are rejected before inference.
-The app validates this sidecar and chooses fixture or DINOv2 preprocessing automatically.
+Expected output paths are printed as `checkpoint=`, `predictions=`, `metrics=`, and
+`robustness_markdown=`. Values produced by this fixture run must not be reported as primary
+results.
 
-## Production artifact workflow
+## Dataset preparation
 
-A real release requires licensed datasets, completed E0 through E4 runs, and a trained DINOv2
-checkpoint. Those inputs are intentionally not included in this clone.
+The full policy, licence status, expected directories, and acquisition boundaries are in
+[`docs/datasets.md`](docs/datasets.md). Raw data stays below `data/raw/`, which Git ignores and
+the release check rejects if tracked.
 
-After the training team provides `artifacts/runs/e0` through `artifacts/runs/e4`, run:
+Acquire the pinned balanced SID-Set subset:
 
-```powershell
-.\.venv\Scripts\python.exe -m prooflens.cli select --runs artifacts/runs/e0 artifacts/runs/e1 artifacts/runs/e2 artifacts/runs/e3 artifacts/runs/e4 --output artifacts/selection.json
-.\.venv\Scripts\python.exe -m prooflens.cli calibrate --selection artifacts/selection.json --split validation --output artifacts/export/calibration.json
-.\.venv\Scripts\python.exe -m prooflens.cli export --selection artifacts/selection.json --format onnx --verify 32 --output artifacts/export/model.onnx
-.\.venv\Scripts\python.exe -m prooflens.cli evaluate --selection artifacts/selection.json --suite clean-robust-generator --split test
-.\.venv\Scripts\python.exe -m prooflens.cli report --selection artifacts/selection.json --output artifacts/reports/final
+```text
+python -m prooflens.cli acquire --config configs/data/sid_subset.yaml --output data/raw/sid_set
 ```
 
-Launch a production ONNX export without the fixture flag:
+Manually place an approved WildFake export at `data/raw/wildfake`. The adapter requires a
+nonempty `real/` directory and a nonempty `fake/` directory whose child directories identify
+generator families. Do not redistribute WildFake until its terms have been verified for the
+specific copy.
 
-```powershell
-.\.venv\Scripts\python.exe -m prooflens.cli app --backend onnx --model artifacts/export/model.onnx --calibration artifacts/export/calibration.json
+Build, audit, and split the primary manifest:
+
+```text
+python -m prooflens.cli manifest --config configs/data/primary.yaml --output artifacts/manifests/primary.parquet
+python -m prooflens.cli audit --manifest artifacts/manifests/primary.parquet --output artifacts/reports/data-audit
+python -m prooflens.cli split --manifest artifacts/manifests/primary.parquet --output artifacts/manifests/primary-split.parquet --seed 17
 ```
 
-Model selection and calibration use validation data only. Test and generator-holdout predictions
-must not influence checkpoint selection, temperature fitting, or threshold selection.
+The manifest policy requires both binary labels and at least three fake generator families from
+approved generator-labelled sources. Splitting is grouped and checks exact and perceptual
+duplicates before assigning train, validation, test, generator-validation, and generator-test
+partitions.
 
-## What belongs in Git
+## E0 through E4
 
-The entire `artifacts/` directory is ignored to prevent datasets, checkpoints, predictions, and
-large model binaries from entering normal commits.
+Each configuration records the common split, seed, training schedule, model stage, transform
+policy, and output directory.
 
-For a production release:
-
-- Commit source code, configurations, documentation, small Markdown reports, and non-sensitive
-  plots.
-- Publish `model.onnx` and PyTorch checkpoints as GitHub Release assets or in approved model
-  storage.
-- Publish `selection.json`, `calibration.json`, and `export_report.json` beside the model so their
-  provenance remains together.
-- Publish `artifact_manifest.json` with the bundle; automatic launch rejects missing, mixed, or
-  hash-mismatched artifacts.
-- Never publish source datasets, restricted thumbnails, credentials, or raw predictions unless
-  their licences and privacy requirements explicitly permit it.
-- Record the release asset URL and SHA-256 checksum in the release notes.
-
-Do not use `git add -f artifacts/...` for the fixture bundle. Regenerate it with
-`scripts/reproduce_small.py` instead.
-
-## Troubleshooting
-
-- `py is not recognized`: use `python`, or use the bundled Codex Python command shown above.
-- `-e option requires 1 argument`: include the final dot in `pip install -e .`.
-- `No module named prooflens`: the editable installation did not complete; rerun
-  `.\.venv\Scripts\python.exe -m pip install -e .` and wait for `Successfully installed`.
-- Installation appears frozen at `Installing collected packages`: PyTorch and its dependencies can
-  take several minutes to unpack on Windows. Wait for the PowerShell prompt to return.
-- Fixture results stay near 50%: the fixture is a workflow test, not a trained real-world detector.
-- `automatic preprocessing requires artifact_manifest.json`: regenerate the bundle, or use an
-  explicit `--preprocessing dinov2` only after independently verifying a legacy model.
-- A production launch downloads DINOv2 processor metadata on first use. The fixture launch is
-  offline after dependencies are installed.
-
-## Tests
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m ruff check .
+```text
+python -m prooflens.cli train --config configs/experiments/e0_frozen.yaml
+python -m prooflens.cli train --config configs/experiments/e1_last2.yaml
+python -m prooflens.cli train --config configs/experiments/e2_augmented.yaml
+python -m prooflens.cli train --config configs/experiments/e3_consistency.yaml
+python -m prooflens.cli train --config configs/experiments/e4_hard_mining.yaml
 ```
 
-The same Ruff check and test suite run automatically in GitHub Actions for every pull request.
-Tests run on both supported Python versions, 3.11 and 3.12; superseded runs are cancelled.
+E0 trains the head, E1 unfreezes the final two DINOv2 blocks, E2 adds transformed
+classification, E3 adds prediction and feature consistency, and E4 adds loss-guided hard
+transformation selection.
 
-The required exported runtime is ONNX Runtime on CPU. OpenVINO acceleration is optional.
+Evaluate every candidate on the validation contract:
+
+```text
+python -m prooflens.cli evaluate --run artifacts/runs/e0 --suite clean-robust-generator --split validation
+python -m prooflens.cli evaluate --run artifacts/runs/e1 --suite clean-robust-generator --split validation
+python -m prooflens.cli evaluate --run artifacts/runs/e2 --suite clean-robust-generator --split validation
+python -m prooflens.cli evaluate --run artifacts/runs/e3 --suite clean-robust-generator --split validation
+python -m prooflens.cli evaluate --run artifacts/runs/e4 --suite clean-robust-generator --split validation
+```
+
+## Selection, calibration, and final reports
+
+The project score is `0.50 * clean AUC + 0.50 * macro robust AUC`. Macro robust AUC first
+averages severity AUCs within each of the six transform families, then gives each family equal
+weight. Ties use worst-family AUC, then unseen-generator AUC, then lower model complexity.
+
+```text
+python -m prooflens.cli select --runs artifacts/runs/e0 artifacts/runs/e1 artifacts/runs/e2 artifacts/runs/e3 artifacts/runs/e4 --output artifacts/selection.json
+python -m prooflens.cli calibrate --selection artifacts/selection.json --split validation --output artifacts/calibration.json
+python -m prooflens.cli evaluate --selection artifacts/selection.json --suite clean-robust-generator --split test
+python -m prooflens.cli evaluate-stress --selection artifacts/selection.json --split test --output artifacts/reports/stress
+python -m prooflens.cli report --selection artifacts/selection.json --output artifacts/reports/final
+```
+
+Selection occurs before temperature scaling. Calibration uses validation predictions only. The
+final report command consumes the selected run's test predictions and frozen calibration.
+
+## ONNX export and local app
+
+The publication gate always compares 32 validation or test images between PyTorch and ONNX. A
+failed parity check does not publish the staged model.
+
+```text
+python -m prooflens.cli export --selection artifacts/selection.json --format onnx --verify 32 --output artifacts/export/prooflens.onnx
+python -m prooflens.cli app --backend onnx --model artifacts/export/prooflens.onnx --calibration artifacts/calibration.json
+```
+
+For an optional OpenVINO smoke attempt, install the extra and repeat export with
+`--format openvino`. CPU ONNX remains the required fallback.
+
+```text
+python -m pip install -e ".[openvino,dev]"
+python -m prooflens.cli export --selection artifacts/selection.json --format openvino --verify 32 --output artifacts/export/prooflens.onnx
+```
+
+The app displays calibrated authentic and AI-generated probabilities, a threshold-relative
+label, one selected transformation, and the absolute probability change. It is a demonstration,
+not forensic proof.
+
+## Artifact layout
+
+```text
+data/raw/sid_set/                         local SID-Set images and manifest
+data/raw/wildfake/                        local manually acquired WildFake export
+artifacts/manifests/primary.parquet       canonical unsplit manifest
+artifacts/manifests/primary-split.parquet grouped split used by every experiment
+artifacts/runs/e0 ... e4/                 resolved config, metadata, checkpoints, predictions
+artifacts/selection.json                  selected run and validation split provenance
+artifacts/calibration.json                validation-fitted temperature and threshold
+artifacts/reports/final/                  test metrics, table, and AUC plot
+artifacts/reports/stress/                 supplemental redistribution stress results
+artifacts/export/prooflens.onnx           parity-verified export, when available
+artifacts/export/export_report.json       ONNX parity evidence, when available
+```
+
+`data/` and `artifacts/` are intentionally excluded from Git. Publish weights or large exports
+only through separately reviewed release storage.
+
+## Expected failures
+
+The CLI normalizes failures by category:
+
+- `configuration error:` for missing, malformed, or inconsistent arguments and artifacts
+- `data integrity error:` for invalid datasets, manifests, splits, or prediction data
+- `model error:` for training or export failures
+- `prooflens error:` for other project-defined failures
+
+Common corrective messages include:
+
+- SID acquisition refuses to overwrite an existing output root. Remove or rename that complete
+  local output only after deciding it is safe to do so.
+- A missing or empty WildFake root reports both configured official acquisition sources and the
+  expected placement.
+- `--verify must be 32 for the publication parity gate` means the export sample count changed.
+- `ONNX parity requires 32 validation or test images` means the selected split is too small.
+- `selection has no calibration_path; run calibrate first` means export, report, or app setup is
+  ahead of the required validation-only calibration step.
+- The ONNX app requires `--model`; the Torch app requires `--checkpoint`; both require
+  `--calibration`.
+
+## Development and release checks
+
+```text
+python -m ruff check src tests scripts
+python -m pytest -q
+python scripts/release_check.py --root .
+```
+
+The release scanner uses `git ls-files` inside a repository, so ignored and untracked local
+datasets are not misreported as published files. It rejects tracked raw data, credentials,
+private keys, model binaries, files over 100 MiB, incomplete notices, and incomplete required
+documents.
+
+## Licence and responsible use
+
+ProofLens project code is MIT licensed. Third-party model and dataset terms remain separate and
+are recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). Review those terms before
+acquisition, use, or redistribution. See [`docs/model-card.md`](docs/model-card.md) for intended
+use, evaluation status, limitations, and ethical considerations.
