@@ -31,7 +31,7 @@
 
 ## Four-Day Execution Map and Ownership
 
-Codex owns all repository code, tests, configurations, baseline training logic, robust training logic, evaluation, export, and documentation. The four humans are not assigned parallel coding branches. Human-only actions are limited to dataset or service logins, accepting third-party licences, starting any approved cloud compute session, judging the resulting demo, recording the video, and publishing the final external assets.
+The reviewed Milestone 1 data pipeline is the common base for three implementation roles. Each role works only in its assigned branch and file boundaries. The integration owner coordinates shared files and milestone reviews. Human-only actions remain limited to dataset or service logins, accepting third-party licences, starting any approved cloud compute session, judging the resulting demo, recording the video, and publishing the final external assets.
 
 | Day | Technical critical path | Human-only support | Exit evidence |
 | --- | --- | --- | --- |
@@ -41,6 +41,32 @@ Codex owns all repository code, tests, configurations, baseline training logic, 
 | 4 | Complete Tasks 16 through 18, run laptop and clean-checkout acceptance, and freeze the repository | Record and upload the demo video, submit Devpost entry | Release check, acceptance report, public repository and submission assets |
 
 If a daily exit condition slips, preserve the completed baseline and robustness table. Remove optional OpenVINO work first, then reduce repeated seeds to one additional seed. Do not remove grouped splitting, required transformations, ONNX CPU inference, or error analysis.
+
+---
+
+## Three-Role Delivery Workflow
+
+Create all three role branches from the same reviewed Milestone 1 commit on `codex/prooflens-implementation`. A role may add files within its ownership boundary, but it must not edit another role's owned files. When a cross-role interface needs to change, record the request in the progress ledger and let the integration owner make or assign the shared edit after the current milestone review.
+
+| Role | Branch | Tasks | Responsibilities | Exclusive implementation ownership |
+| --- | --- | ---: | --- | --- |
+| Model and training | `role/model-training` | 7 to 9 | DINOv2 detector, trainable stages, losses, hard-example mining, trainer, checkpoints, run metadata, and focused tests | `src/prooflens/models/`, `src/prooflens/training/`, `tests/unit/models/`, `tests/unit/training/` |
+| Evaluation and inference | `role/evaluation-inference` | 10 to 13 | Prediction records, metrics, validation-only selection, calibration, robustness reports, inference backends, ONNX export, optional OpenVINO smoke path, and focused tests | `src/prooflens/evaluation/`, `src/prooflens/reporting/`, `src/prooflens/inference/` except the frozen `preprocess.py` contract, `src/prooflens/export/`, and matching unit and export-parity tests |
+| Product and release | `role/product-release` | 14 to 18 | Gradio UI, CLI, experiment configurations, miniature workflow, documentation, licensing, CI, experiment execution records, laptop acceptance, demo script, and final release assets | `src/prooflens/web/`, `src/prooflens/cli.py`, `configs/experiments/`, `scripts/`, `.github/workflows/`, release documentation, web and small-workflow tests |
+
+### Shared-file ownership
+
+The integration owner exclusively edits the shared planning and foundation files: this implementation guide, the plan progress ledger, `pyproject.toml`, `.gitignore`, `src/prooflens/__init__.py`, `src/prooflens/config.py`, `src/prooflens/errors.py`, and the frozen Milestone 1 data pipeline. `README.md`, `LICENSE`, and `THIRD_PARTY_NOTICES.md` are assigned to the Product and release role once its branch begins. Other roles submit dependency or shared-interface requests through the ledger instead of editing these files concurrently.
+
+Existing interfaces are merge contracts. Model and training consumes `PairedBatch` and shared preprocessing without changing them. Evaluation and inference consumes model outputs and checkpoints after the Model and training merge. Product and release consumes the evaluation and inference service after both earlier role merges. Any necessary exception requires an integration-owner ruling and a focused regression test before the shared file changes.
+
+### Merge order and milestone gates
+
+1. Merge `role/model-training` after the Tasks 7 to 9 milestone review and full gate.
+2. Update `role/evaluation-inference` from the integration branch, then merge it after the Tasks 10 to 13 milestone review and full gate.
+3. Update `role/product-release` from the integration branch, then merge it after the Tasks 14 to 18 milestone reviews and release gate.
+
+Do not merge a later role first, and do not consolidate per task. Keep datasets, model weights, generated experiment artifacts, and credentials out of Git. Every role hands off exact commands, configuration changes, test results, and measured deviations at its milestone boundary.
 
 ---
 

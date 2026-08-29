@@ -124,3 +124,14 @@ Task 4: original implementer interrupted after creating untracked hashing, split
 Task 4: user requested higher reasoning; partial work handed to fresh ultra-reasoning implementer `/root/task_4_ultra_implementer` with the locked Task 4 requirements unchanged.
 Task 4: complete in commits `53dae17..0f0bbd8`; behavioral RED 16 failed and 44 passed plus provenance RED 2 failed, final focused suite 61 passed, Ruff passed. Full-suite and independent review deferred to Milestone 1 gate.
 Task 5: dispatched implementer `/root/task_5_implementer`; base `0f0bbd8`.
+Task 5: complete locally in commits `9a1362b..838ae48`; behavioral RED was the missing transform module, final focused suite 39 passed, Ruff passed. Full-suite and independent review deferred to the Milestone 1 gate. The report records a deliberate NumPy separable Gaussian blur instead of torchvision for one-pixel safety; the consolidated reviewer must rule on plan compliance.
+Checkpoint: `origin/main` and `origin/codex/prooflens-implementation` were pushed and fast-forwarded to the reviewed Task 4 commit `0f0bbd8`. Task 5 and later work remain local pending Milestone 1 completion.
+Task 6: dispatched implementer `/root/task_6_implementer`; base `aeea695` plus controller ledger update.
+Task 6: complete locally in commits `67979b1..f6306af`; RED 53 expected failures, final focused suite 53 passed in 10.62 seconds, Ruff passed.
+Milestone 1: implementation complete through Task 6; consolidated full-suite verification and independent review started.
+Milestone 1: first full-suite attempt produced 175 passes and 43 setup errors because the external pytest basetemp parent did not exist; no assertion failed. After creating the parent directory, the fresh full suite passed 218 tests in 11.80 seconds. Full Ruff passed.
+Milestone 1: consolidated review package generated for `be92626..f6306af`; ultra-reasoning independent review dispatched to `/root/milestone_1_reviewer`.
+Milestone 1: direct local review found an integration blocker between replacement sampling and paired collation: `make_weighted_sampler()` could emit duplicate sample IDs that `PairedBatchCollator` rejected.
+Milestone 1: fix RED reproduced the blocker through the real weighted sampler and collator; the regression failed at the duplicate-ID uniqueness guard. The minimal fix removed only that guard while retaining nonempty ID validation.
+Milestone 1: fix GREEN passed the new regression, then all 54 Task 6 tests in 7.70 seconds. The final full suite passed 219 tests in 12.20 seconds, and Ruff passed with no diagnostics.
+Milestone 1: direct consolidated review complete after the sampler-collator fix. The implementation guide now records the three role branches, Tasks 7 to 18 ownership, shared-file boundaries, milestone reviews, and merge order.
