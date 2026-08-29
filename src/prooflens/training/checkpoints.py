@@ -36,6 +36,7 @@ class CheckpointManager:
     ) -> Path:
         destination = self.directory / f"{name}.pt"
         temporary = self.directory / f".{name}.{uuid4().hex}.tmp"
+        numpy_rng = np.random.get_state()
         payload = {
             "model": model.state_dict(),
             "optimizer": optimizer.state_dict(),
@@ -44,7 +45,13 @@ class CheckpointManager:
             "global_step": global_step,
             "config_hash": config_hash,
             "python_rng": random.getstate(),
-            "numpy_rng": np.random.get_state(),
+            "numpy_rng": (
+                numpy_rng[0],
+                numpy_rng[1].tolist(),
+                numpy_rng[2],
+                numpy_rng[3],
+                numpy_rng[4],
+            ),
             "torch_rng": torch.get_rng_state(),
             "cuda_rng": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
         }
@@ -88,7 +95,16 @@ class CheckpointManager:
         if scheduler is not None and payload["scheduler"] is not None:
             scheduler.load_state_dict(payload["scheduler"])
         random.setstate(payload["python_rng"])
-        np.random.set_state(payload["numpy_rng"])
+        numpy_rng = payload["numpy_rng"]
+        np.random.set_state(
+            (
+                str(numpy_rng[0]),
+                np.asarray(numpy_rng[1], dtype=np.uint32),
+                int(numpy_rng[2]),
+                int(numpy_rng[3]),
+                float(numpy_rng[4]),
+            )
+        )
         torch.set_rng_state(payload["torch_rng"])
         if torch.cuda.is_available() and payload["cuda_rng"] is not None:
             torch.cuda.set_rng_state_all(payload["cuda_rng"])

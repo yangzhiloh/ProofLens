@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import pickle
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -60,7 +61,7 @@ class TorchLogitBackend:
         resolved_device = resolve_torch_device(device)
         try:
             payload = torch.load(path, map_location=resolved_device, weights_only=True)
-        except (OSError, RuntimeError, TypeError, ValueError) as error:
+        except (OSError, RuntimeError, TypeError, ValueError, pickle.UnpicklingError) as error:
             raise TrainingError(f"checkpoint could not be loaded: {path}") from error
         state = _extract_model_state(payload)
         try:
