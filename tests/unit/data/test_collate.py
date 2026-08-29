@@ -4,6 +4,7 @@ from dataclasses import FrozenInstanceError
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import pytest
 import torch
 from PIL import Image
@@ -187,19 +188,52 @@ def test_collator_rejects_invalid_epochs(epoch: Any) -> None:
         collator.set_epoch(epoch)
 
 
-def test_collator_rejects_empty_and_duplicate_batches() -> None:
+def test_collator_rejects_empty_batch() -> None:
     PairedBatchCollator, _, FixedTransformSampler = _task6_types()
     collator = PairedBatchCollator(
         processor=FakeProcessor(),
         sampler=FixedTransformSampler("jpeg_q50"),
         seed=17,
     )
-    item = _source_items(1)[0]
 
     with pytest.raises(DataIntegrityError, match="nonempty"):
         collator([])
-    with pytest.raises(DataIntegrityError, match="sample_ids.*unique"):
-        collator([item, item])
+
+
+def test_collator_accepts_duplicate_ids_from_replacement_sampler() -> None:
+    from prooflens.data.sampling import make_weighted_sampler
+
+    PairedBatchCollator, _, FixedTransformSampler = _task6_types()
+    frame = pd.DataFrame(
+        [
+            {
+                "label": 0,
+                "dataset_name": "sid_set",
+                "generator_family": "authentic",
+            },
+            {
+                "label": 1,
+                "dataset_name": "wildfake",
+                "generator_family": "sdxl",
+            },
+        ]
+    )
+    source_items = _source_items()
+    sampled_items = [
+        source_items[index]
+        for index in make_weighted_sampler(frame, seed=17, num_samples=4)
+    ]
+    collator = PairedBatchCollator(
+        processor=FakeProcessor(),
+        sampler=FixedTransformSampler("jpeg_q50"),
+        seed=17,
+    )
+
+    batch = collator(sampled_items)
+
+    assert batch.clean_pixels.shape == (4, 3, 224, 224)
+    assert batch.transformed_pixels.shape == (4, 3, 224, 224)
+    assert len(set(batch.sample_ids)) < len(batch.sample_ids)
 
 
 @pytest.mark.parametrize(

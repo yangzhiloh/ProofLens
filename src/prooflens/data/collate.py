@@ -93,8 +93,6 @@ def _validate_items(items: tuple[SourceItem, ...]) -> None:
     identifiers = [item.sample_id for item in items]
     if any(not isinstance(value, str) or not value.strip() for value in identifiers):
         raise DataIntegrityError("paired collation sample_ids must be nonempty strings")
-    if len(identifiers) != len(set(identifiers)):
-        raise DataIntegrityError("paired collation sample_ids must be unique")
     if any(
         not isinstance(item.label, Integral)
         or isinstance(item.label, bool)
