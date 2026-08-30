@@ -131,6 +131,7 @@ class PublishedDemoArtifacts:
     calibration: Path
     model: Path
     export_report: Path
+    artifact_manifest: Path
 
 
 def reproduce_small(output_dir: Path) -> ReproductionResult:
@@ -180,6 +181,11 @@ def publish_fixture_artifacts(
 
     from prooflens.cli import _publish_verified_onnx
     from prooflens.export.onnx_export import export_onnx, verify_onnx_parity
+    from prooflens.inference.artifacts import (
+        ARTIFACT_MANIFEST_NAME,
+        write_artifact_manifest,
+    )
+    from prooflens.inference.preprocess import FIXTURE_PREPROCESSING_VERSION
 
     output_dir = Path(output_dir)
     run_dir = result.checkpoint.parents[1]
@@ -220,9 +226,7 @@ def publish_fixture_artifacts(
         "checkpoint_id": output_dir.name,
         "config": str(run_dir / "config.yaml"),
         "intended_use": "Local workflow and UI demonstration only; not forensic or production inference.",
-        "limitations": (
-            "Trained on synthetic fixture images; use --preprocessing fixture when launching."
-        ),
+        "limitations": "Trained on synthetic fixture images; not a real-world detector.",
         "run_dir": str(run_dir),
         "validation_split_hash": split_hash,
     }
@@ -253,11 +257,26 @@ def publish_fixture_artifacts(
         export_fn=export_onnx,
         verify_fn=verify_onnx_parity,
     )
+    export_report = model_path.with_name("export_report.json")
+    artifact_manifest = write_artifact_manifest(
+        model_path.with_name(ARTIFACT_MANIFEST_NAME),
+        artifact_tier="deterministic-fixture-demo",
+        model_version="prooflens-fixture-onnx",
+        preprocessing_name="fixture",
+        preprocessing_version=FIXTURE_PREPROCESSING_VERSION,
+        files={
+            "calibration": calibration_path,
+            "export_report": export_report,
+            "model": model_path,
+            "selection": selection_path,
+        },
+    )
     return PublishedDemoArtifacts(
         selection=selection_path,
         calibration=calibration_path,
         model=model_path,
-        export_report=model_path.with_name("export_report.json"),
+        export_report=export_report,
+        artifact_manifest=artifact_manifest,
     )
 
 

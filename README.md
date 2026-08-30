@@ -22,7 +22,7 @@ From the repository directory:
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 .\.venv\Scripts\python.exe scripts/reproduce_small.py --output artifacts/demo --experiment e3 --publish-demo-artifacts
-.\.venv\Scripts\python.exe -m prooflens.cli app --backend onnx --preprocessing fixture --model artifacts/demo/export/model.onnx --calibration artifacts/demo/export/calibration.json
+.\.venv\Scripts\python.exe -m prooflens.cli app --backend onnx --model artifacts/demo/export/model.onnx --calibration artifacts/demo/export/calibration.json
 ```
 
 If `python` and the Windows `py` launcher are unavailable inside Codex, use the bundled runtime for
@@ -40,7 +40,7 @@ Open <http://127.0.0.1:7860> after Gradio prints the local address. Stop the ser
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -e .
 .venv/bin/python scripts/reproduce_small.py --output artifacts/demo --experiment e3 --publish-demo-artifacts
-.venv/bin/python -m prooflens.cli app --backend onnx --preprocessing fixture --model artifacts/demo/export/model.onnx --calibration artifacts/demo/export/calibration.json
+.venv/bin/python -m prooflens.cli app --backend onnx --model artifacts/demo/export/model.onnx --calibration artifacts/demo/export/calibration.json
 ```
 
 ## Generated demo artifacts
@@ -52,6 +52,7 @@ artifacts/demo/
 ├── selection.json
 ├── export/
 │   ├── calibration.json
+│   ├── artifact_manifest.json
 │   ├── export_report.json
 │   └── model.onnx
 ├── run/
@@ -64,9 +65,9 @@ artifacts/demo/
     └── auc.png
 ```
 
-`selection.json` identifies these files as `deterministic-fixture-demo`. The ONNX model must be
-launched with `--preprocessing fixture`; production DINOv2 exports use the default
-`--preprocessing dinov2`.
+`selection.json` identifies these files as `deterministic-fixture-demo`.
+`artifact_manifest.json` binds the model, calibration, preprocessing version, and SHA-256 hashes.
+The app validates this sidecar and chooses fixture or DINOv2 preprocessing automatically.
 
 ## Production artifact workflow
 
@@ -105,6 +106,8 @@ For a production release:
   storage.
 - Publish `selection.json`, `calibration.json`, and `export_report.json` beside the model so their
   provenance remains together.
+- Publish `artifact_manifest.json` with the bundle; automatic launch rejects missing, mixed, or
+  hash-mismatched artifacts.
 - Never publish source datasets, restricted thumbnails, credentials, or raw predictions unless
   their licences and privacy requirements explicitly permit it.
 - Record the release asset URL and SHA-256 checksum in the release notes.
@@ -121,6 +124,8 @@ Do not use `git add -f artifacts/...` for the fixture bundle. Regenerate it with
 - Installation appears frozen at `Installing collected packages`: PyTorch and its dependencies can
   take several minutes to unpack on Windows. Wait for the PowerShell prompt to return.
 - Fixture results stay near 50%: the fixture is a workflow test, not a trained real-world detector.
+- `automatic preprocessing requires artifact_manifest.json`: regenerate the bundle, or use an
+  explicit `--preprocessing dinov2` only after independently verifying a legacy model.
 - A production launch downloads DINOv2 processor metadata on first use. The fixture launch is
   offline after dependencies are installed.
 

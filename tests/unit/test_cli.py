@@ -384,3 +384,97 @@ def test_app_command_uses_checkpoint_factory_and_launches(tmp_path, monkeypatch)
 
     assert exit_code == 0
     assert fake_app.launched
+
+
+def test_app_auto_detects_fixture_preprocessing_from_hashed_manifest(
+    tmp_path, monkeypatch
+) -> None:
+    from prooflens.cli import run_app_cli
+    from prooflens.inference import onnx_backend
+    from prooflens.inference.artifacts import write_artifact_manifest
+    from prooflens.web import app as web_app
+
+    model = tmp_path / "model.onnx"
+    calibration = tmp_path / "calibration.json"
+    model.write_bytes(b"fixture")
+    calibration.write_text(
+        json.dumps({"temperature": 1.0, "threshold": 0.5}),
+        encoding="utf-8",
+    )
+    write_artifact_manifest(
+        tmp_path / "artifact_manifest.json",
+        artifact_tier="deterministic-fixture-demo",
+        model_version="fixture-v1",
+        preprocessing_name="fixture",
+        preprocessing_version="fixture-rgb-224-v1",
+        files={"model": model, "calibration": calibration},
+    )
+
+    class FakeBackend:
+        def __init__(
+            self, model_path, processor, *, model_version, preprocessing_version
+        ) -> None:
+            self.model_version = model_version
+            self.preprocessing_version = preprocessing_version
+            self.processor = processor
+
+        def predict_logit(self, image) -> float:
+            return 0.0
+
+    class FakeApp:
+        launched = False
+
+        def launch(self) -> None:
+            self.launched = True
+
+    fake_app = FakeApp()
+    monkeypatch.setattr(onnx_backend, "OnnxLogitBackend", FakeBackend)
+    monkeypatch.setattr(web_app, "create_app", lambda service: fake_app)
+
+    exit_code = run_app_cli(
+        argparse.Namespace(
+            backend="onnx",
+            checkpoint=None,
+            model=model,
+            calibration=calibration,
+            preprocessing="auto",
+            artifact_manifest=None,
+        )
+    )
+
+    assert exit_code == 0
+    assert fake_app.launched
+
+
+def test_app_rejects_preprocessing_that_conflicts_with_manifest(tmp_path) -> None:
+    from prooflens.cli import run_app_cli
+    from prooflens.errors import UserInputError
+    from prooflens.inference.artifacts import write_artifact_manifest
+
+    model = tmp_path / "model.onnx"
+    calibration = tmp_path / "calibration.json"
+    model.write_bytes(b"fixture")
+    calibration.write_text(
+        json.dumps({"temperature": 1.0, "threshold": 0.5}),
+        encoding="utf-8",
+    )
+    write_artifact_manifest(
+        tmp_path / "artifact_manifest.json",
+        artifact_tier="deterministic-fixture-demo",
+        model_version="fixture-v1",
+        preprocessing_name="fixture",
+        preprocessing_version="fixture-rgb-224-v1",
+        files={"model": model, "calibration": calibration},
+    )
+
+    with pytest.raises(UserInputError, match="conflicts"):
+        run_app_cli(
+            argparse.Namespace(
+                backend="onnx",
+                checkpoint=None,
+                model=model,
+                calibration=calibration,
+                preprocessing="dinov2",
+                artifact_manifest=None,
+            )
+        )
