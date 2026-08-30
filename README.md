@@ -16,6 +16,7 @@ workflow is a software reproducibility check, not evidence of primary-model perf
 ## Requirements
 
 - Python 3.11 or 3.12, as declared by `pyproject.toml`
+- uv 0.12.0
 - Git for the tracked-file release check
 - Network access for SID-Set acquisition and the first DINOv2 download
 - Manually obtained WildFake data whose terms have been reviewed by the user
@@ -28,27 +29,22 @@ tests. OpenVINO is optional.
 ### Windows PowerShell
 
 ```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -c requirements.lock -e ".[dev]"
-.\.venv\Scripts\Activate.ps1
+uv sync --locked --extra dev --python 3.11
 ```
 
 ### Linux shell
 
 ```bash
-python3.11 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -c requirements.lock -e '.[dev]'
-source .venv/bin/activate
-
-requirements.lock pins the direct project dependencies for Python 3.11 and
-3.12 on Windows and Linux. The platform-specific resolver still selects the
-correct wheel and transitive dependencies.
+uv sync --locked --extra dev --python 3.11
 ```
 
-The remaining commands assume the virtual environment is active and use the same `python`
-entry point on both systems.
+`uv.lock` pins the complete direct and transitive dependency graph for Python 3.11 and 3.12,
+including platform-specific distributions and SHA-256 hashes. `--locked` rejects any mismatch
+between `pyproject.toml` and the committed lock instead of silently resolving new versions.
+
+Run project commands through `uv run --locked --extra dev`, for example
+`uv run --locked --extra dev python -m pytest -q`. This selects the synchronized environment
+consistently on Windows and Linux without requiring shell activation.
 
 ## Fast offline reproduction
 
@@ -57,7 +53,7 @@ small randomly initialized DINOv2-shaped model for one epoch, evaluates canonica
 and writes metrics and a robustness table. It downloads no dataset or pretrained weight.
 
 ```text
-python scripts/reproduce_small.py --output artifacts/release-smoke --experiment e4
+uv run --locked --extra dev python scripts/reproduce_small.py --output artifacts/release-smoke --experiment e4
 ```
 
 Expected output paths are printed as `checkpoint=`, `predictions=`, `metrics=`, and
@@ -152,8 +148,8 @@ For an optional OpenVINO smoke attempt, install the extra and repeat export with
 `--format openvino`. CPU ONNX remains the required fallback.
 
 ```text
-python -m pip install -e ".[openvino,dev]"
-python -m prooflens.cli export --selection artifacts/selection.json --format openvino --verify 32 --output artifacts/export/prooflens.onnx
+uv sync --locked --all-extras
+uv run --locked --all-extras python -m prooflens.cli export --selection artifacts/selection.json --format openvino --verify 32 --output artifacts/export/prooflens.onnx
 ```
 
 The app displays calibrated authentic and AI-generated probabilities, a threshold-relative
@@ -204,9 +200,9 @@ Common corrective messages include:
 ## Development and release checks
 
 ```text
-python -m ruff check src tests scripts
-python -m pytest -q
-python scripts/release_check.py --root .
+uv run --locked --extra dev python -m ruff check src tests scripts
+uv run --locked --extra dev python -m pytest -q
+uv run --locked --extra dev python scripts/release_check.py --root .
 ```
 
 The release scanner uses `git ls-files` inside a repository, so ignored and untracked local
