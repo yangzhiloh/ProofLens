@@ -6,8 +6,9 @@ from uuid import uuid4
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from prooflens.data.adapters.base import DatasetAdapter
+from prooflens.data.hashing import perceptual_hash_file, sha256_file
 from prooflens.data.schema import ManifestRecord, records_to_frame
-from prooflens.errors import ManifestBuildError
+from prooflens.errors import DataIntegrityError, ManifestBuildError
 
 
 @dataclass(frozen=True)
@@ -31,7 +32,7 @@ def build_manifest(
         for record in adapter.scan():
             try:
                 valid_records.append(_validated_record(record))
-            except (OSError, UnidentifiedImageError, ValueError):
+            except (OSError, UnidentifiedImageError, ValueError, DataIntegrityError):
                 corrupt_paths.append(record.path)
 
     total_count = len(valid_records) + len(corrupt_paths)
@@ -60,4 +61,12 @@ def _validated_record(record: ManifestRecord) -> ManifestRecord:
         file_format = image.format or "UNKNOWN"
         decoded = ImageOps.exif_transpose(image).convert("RGB")
         width, height = decoded.size
-    return record.model_copy(update={"width": width, "height": height, "file_format": file_format})
+    return record.model_copy(
+        update={
+            "width": width,
+            "height": height,
+            "file_format": file_format,
+            "content_checksum": sha256_file(record.path),
+            "perceptual_hash": perceptual_hash_file(record.path),
+        }
+    )
