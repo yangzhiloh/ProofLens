@@ -19,6 +19,7 @@ from prooflens.data.hashing import sha256_file
 from prooflens.data.schema import ManifestRecord, records_to_frame
 from prooflens.data.splitting import build_split_groups
 
+
 def test_manifest_command_merges_acquired_sid_with_wildfake_and_hashes_rows(
     tmp_path: Path,
 ) -> None:
