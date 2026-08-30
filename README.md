@@ -67,6 +67,10 @@ artifacts/demo/
 
 `selection.json` identifies these files as `deterministic-fixture-demo`.
 `artifact_manifest.json` binds the model, calibration, preprocessing version, and SHA-256 hashes.
+Its versioned contract is documented by
+[`schemas/artifact-manifest-v1.schema.json`](schemas/artifact-manifest-v1.schema.json). Version 1
+requires portable bundle-relative paths and lowercase SHA-256 digests; unknown schema versions,
+malformed entries, mixed artifacts, and paths escaping the bundle root are rejected before inference.
 The app validates this sidecar and chooses fixture or DINOv2 preprocessing automatically.
 
 ## Production artifact workflow
