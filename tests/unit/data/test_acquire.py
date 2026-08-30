@@ -114,6 +114,28 @@ def test_acquire_sid_subset_rejects_underfilled_stream_without_partial_output(
     assert not output_root.exists()
 
 
+def test_acquire_sid_subset_writes_selected_images_incrementally(tmp_path: Path) -> None:
+    output_root = tmp_path / "sid"
+
+    def rows():
+        yield _sid_row("real", 0, "white")
+        staging = tuple(tmp_path.glob(".sid.acquiring-*"))
+        assert len(staging) == 1
+        assert len(tuple(staging[0].glob("images/0/*.png"))) == 1
+        yield _sid_row("fake", 1, "black")
+
+    def loader(dataset_id: str, **kwargs: object) -> Any:
+        return rows()
+
+    acquire_sid_subset(
+        {"revision": "pinned-123", "per_class": 1},
+        output_root,
+        dataset_loader=loader,
+    )
+
+    assert (output_root / "manifest.parquet").is_file()
+
+
 def test_acquire_sid_subset_refuses_to_overwrite_existing_root(tmp_path: Path) -> None:
     output_root = tmp_path / "sid"
     output_root.mkdir()

@@ -172,8 +172,15 @@ def acquire_sid_subset(
             revision=resolved.revision,
         )
         observed_revision = _observed_revision(dataset, resolved.revision)
-        selected = list(select_balanced_binary_rows(dataset, resolved.per_class))
-        counts = {label: sum(int(row[resolved.label_field]) == label for row in selected) for label in (0, 1)}
+        rows_for_adapter = _save_selected_images(
+            select_balanced_binary_rows(dataset, resolved.per_class),
+            resolved,
+            staging,
+        )
+        counts = {
+            label: sum(int(row["label"]) == label for row in rows_for_adapter)
+            for label in (0, 1)
+        }
         underfilled = [label for label, count in counts.items() if count != resolved.per_class]
         if underfilled:
             details = ", ".join(
@@ -181,7 +188,6 @@ def acquire_sid_subset(
             )
             raise DatasetAcquisitionError(f"SID acquisition underfilled {details}")
 
-        rows_for_adapter = _save_selected_images(selected, resolved, staging)
         records = list(SidSetAdapter(version=resolved.revision).scan_rows(rows_for_adapter))
         manifest_path = _resolved_write_path(staging, resolved.manifest_name, "manifest_name")
         result = build_manifest([_RecordAdapter(records)], manifest_path, max_corrupt_fraction=0.0)
@@ -303,7 +309,7 @@ def validate_primary_manifest(frame: pd.DataFrame, policy: PrimaryManifestPolicy
 
 
 def _save_selected_images(
-    selected: Sequence[Mapping[str, Any]], config: SidAcquisitionConfig, staging: Path
+    selected: Iterable[Mapping[str, Any]], config: SidAcquisitionConfig, staging: Path
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
