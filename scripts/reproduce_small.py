@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 import time
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+
+import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPOSITORY_ROOT / "src") not in sys.path:
@@ -29,6 +32,7 @@ from prooflens.evaluation.calibration import (
     compute_threshold_metrics,
     fit_temperature,
     select_operating_threshold,
+    write_calibration,
 )
 from prooflens.evaluation.metrics import compute_metrics
 from prooflens.evaluation.predict import predict_loader
@@ -121,6 +125,15 @@ class ReproductionResult:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class PublishedDemoArtifacts:
+    selection: Path
+    calibration: Path
+    model: Path
+    export_report: Path
+    artifact_manifest: Path
+
+
 def reproduce_small(output_dir: Path) -> ReproductionResult:
     output_dir = Path(output_dir)
     fixture_root = make_fixture_data(output_dir / "fixture", per_class=24, seed=17)
@@ -159,6 +172,112 @@ def run_fixture_experiment(output_dir: Path, experiment: str, seed: int = 17) ->
     report = build_fixture_report(predictions, output_dir / "report", inference_ms)
     _write_execution_metadata(output_dir, training_seconds, evaluation_seconds, inference_ms)
     return ReproductionResult.from_artifacts(training, predictions, report)
+
+
+def publish_fixture_artifacts(
+    result: ReproductionResult, output_dir: Path
+) -> PublishedDemoArtifacts:
+    """Publish a complete, explicitly non-production fixture demo bundle."""
+
+    from prooflens.cli import _publish_verified_onnx
+    from prooflens.export.onnx_export import export_onnx, verify_onnx_parity
+    from prooflens.inference.artifacts import (
+        ARTIFACT_MANIFEST_NAME,
+        write_artifact_manifest,
+    )
+    from prooflens.inference.preprocess import FIXTURE_PREPROCESSING_VERSION
+
+    output_dir = Path(output_dir)
+    run_dir = result.checkpoint.parents[1]
+    validation_predictions = run_dir / "predictions-validation.parquet"
+    shutil.copy2(result.predictions, validation_predictions)
+
+    split_metadata = json.loads((output_dir / "split.json").read_text(encoding="utf-8"))
+    split_hash = str(split_metadata["split_sha256"])
+    metrics = json.loads(result.metrics.read_text(encoding="utf-8"))["ranking"]
+    calibration_path = output_dir / "export" / "calibration.json"
+
+    frame = pd.read_parquet(validation_predictions)
+    clean = frame[(frame.split == "validation") & (frame.condition_id == "clean")]
+    logits = torch.tensor(clean.logit.to_numpy(), dtype=torch.float32)
+    labels = torch.tensor(clean.label.to_numpy(), dtype=torch.float32)
+    scaler = fit_temperature(logits, labels)
+    calibrated_scores = torch.sigmoid(scaler(logits)).detach().numpy()
+    threshold = select_operating_threshold(calibrated_scores, clean.label.to_numpy())
+    write_calibration(
+        temperature=float(scaler.temperature.item()),
+        threshold=threshold,
+        validation_split_hash=split_hash,
+        path=calibration_path,
+    )
+
+    selection_path = output_dir / "selection.json"
+    selection = {
+        "artifact_tier": "deterministic-fixture-demo",
+        "calibration_path": str(calibration_path),
+        "candidate": {
+            "checkpoint_id": output_dir.name,
+            "clean_auc": metrics["clean_auc"],
+            "macro_robust_auc": metrics["macro_robust_auc"],
+            "parameter_count": metrics["model_parameters"],
+            "unseen_auc": metrics["unseen_generator_auc"],
+            "worst_family_auc": metrics["worst_family_auc"],
+        },
+        "checkpoint_id": output_dir.name,
+        "config": str(run_dir / "config.yaml"),
+        "intended_use": "Local workflow and UI demonstration only; not forensic or production inference.",
+        "limitations": "Trained on synthetic fixture images; not a real-world detector.",
+        "run_dir": str(run_dir),
+        "validation_split_hash": split_hash,
+    }
+    selection_path.write_text(
+        json.dumps(selection, indent=2, sort_keys=True, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
+
+    backend = TorchLogitBackend.from_checkpoint(
+        result.checkpoint,
+        model_factory=FixtureDetector,
+        processor=FixtureProcessor(),
+    )
+    generator = torch.Generator(device="cpu").manual_seed(17)
+    parity_sample = torch.rand(
+        32,
+        3,
+        _FIXTURE_IMAGE_SIZE,
+        _FIXTURE_IMAGE_SIZE,
+        generator=generator,
+    )
+    model_path = output_dir / "export" / "model.onnx"
+    _publish_verified_onnx(
+        backend.model,
+        parity_sample,
+        model_path,
+        temperature=float(scaler.temperature.item()),
+        export_fn=export_onnx,
+        verify_fn=verify_onnx_parity,
+    )
+    export_report = model_path.with_name("export_report.json")
+    artifact_manifest = write_artifact_manifest(
+        model_path.with_name(ARTIFACT_MANIFEST_NAME),
+        artifact_tier="deterministic-fixture-demo",
+        model_version="prooflens-fixture-onnx",
+        preprocessing_name="fixture",
+        preprocessing_version=FIXTURE_PREPROCESSING_VERSION,
+        files={
+            "calibration": calibration_path,
+            "export_report": export_report,
+            "model": model_path,
+            "selection": selection_path,
+        },
+    )
+    return PublishedDemoArtifacts(
+        selection=selection_path,
+        calibration=calibration_path,
+        model=model_path,
+        export_report=export_report,
+        artifact_manifest=artifact_manifest,
+    )
 
 
 def train_fixture_model(
@@ -210,6 +329,11 @@ def train_fixture_model(
             },
             "output_dir": str(output_dir),
         }
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "config.yaml").write_text(
+        yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False),
+        encoding="utf-8",
     )
     model = FixtureDetector()
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.training.learning_rate)
@@ -377,12 +501,21 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=Path("artifacts/smoke"))
     parser.add_argument("--experiment", choices=("e3", "e4"), default="e3")
+    parser.add_argument(
+        "--publish-demo-artifacts",
+        action="store_true",
+        help="also create selection, calibration, and verified ONNX fixture artifacts",
+    )
     args = parser.parse_args()
     result = run_fixture_experiment(args.output, args.experiment)
     print(f"checkpoint={result.checkpoint}")
     print(f"predictions={result.predictions}")
     print(f"metrics={result.metrics}")
     print(f"robustness_markdown={result.robustness_markdown}")
+    if args.publish_demo_artifacts:
+        published = publish_fixture_artifacts(result, args.output)
+        for name, path in asdict(published).items():
+            print(f"{name}={path}")
 
 
 if __name__ == "__main__":

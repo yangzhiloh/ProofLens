@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yangzhiloh/Tiktoky/blob/main/schemas/artifact-manifest-v1.schema.json",
+  "title": "ProofLens artifact manifest version 1",
+  "description": "Portable integrity and preprocessing contract for a ProofLens inference bundle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_tier",
+    "files",
+    "model_version",
+    "preprocessing",
+    "schema_version"
+  ],
+  "properties": {
+    "artifact_tier": {"type": "string", "minLength": 1},
+    "model_version": {"type": "string", "minLength": 1},
+    "schema_version": {"const": 1},
+    "preprocessing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"enum": ["dinov2", "fixture"]},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "files": {
+      "type": "object",
+      "minProperties": 2,
+      "required": ["model", "calibration"],
+      "propertyNames": {"type": "string", "minLength": 1, "pattern": "^\\S(?:.*\\S)?$"},
+      "additionalProperties": {"$ref": "#/$defs/file"}
+    }
+  },
+  "$defs": {
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "POSIX-style path relative to the manifest; loaders restrict resolution to the bundle root.",
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\).+$"
+        },
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

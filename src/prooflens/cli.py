@@ -94,6 +94,13 @@ def build_parser() -> argparse.ArgumentParser:
     app.add_argument("--checkpoint", type=Path)
     app.add_argument("--model", type=Path)
     app.add_argument("--calibration", type=Path, required=True)
+    app.add_argument(
+        "--preprocessing",
+        choices=("auto", "dinov2", "fixture"),
+        default="auto",
+        help="Auto-detect from artifact_manifest.json; explicit modes support legacy bundles.",
+    )
+    app.add_argument("--artifact-manifest", type=Path)
     return parser
 
 
@@ -463,7 +470,15 @@ def run_export_cli(args: argparse.Namespace) -> int:
     from prooflens.data.dataset import SourceImageDataset
     from prooflens.errors import ExportError
     from prooflens.export.onnx_export import export_onnx, verify_onnx_parity
-    from prooflens.inference.preprocess import create_dinov2_processor, preprocess_images
+    from prooflens.inference.artifacts import (
+        ARTIFACT_MANIFEST_NAME,
+        write_artifact_manifest,
+    )
+    from prooflens.inference.preprocess import (
+        PREPROCESSING_VERSION,
+        create_dinov2_processor,
+        preprocess_images,
+    )
     from prooflens.inference.torch_backend import TorchLogitBackend
     from prooflens.models.detector import DinoDetector
 
@@ -509,6 +524,25 @@ def run_export_cli(args: argparse.Namespace) -> int:
             sample[:1].detach().cpu().numpy(),
             path.with_name("openvino_report.json"),
         )
+    calibration_path = Path(str(selection["calibration_path"]))
+    published_files = {
+        "calibration": calibration_path,
+        "export_report": path.with_name("export_report.json"),
+        "model": path,
+        "selection": args.selection,
+    }
+    openvino_report = path.with_name("openvino_report.json")
+    if openvino_report.is_file():
+        published_files["openvino_report"] = openvino_report
+    checkpoint_id = str(selection.get("checkpoint_id", "selected"))
+    write_artifact_manifest(
+        path.with_name(ARTIFACT_MANIFEST_NAME),
+        artifact_tier=str(selection.get("artifact_tier", "production-candidate")),
+        model_version=f"prooflens-{checkpoint_id}-onnx",
+        preprocessing_name="dinov2",
+        preprocessing_version=PREPROCESSING_VERSION,
+        files=published_files,
+    )
     print(path)
     return 0
 
@@ -601,6 +635,8 @@ def run_app_cli(args: argparse.Namespace) -> int:
     from prooflens.web.app import create_app
 
     if args.backend == "torch":
+        if getattr(args, "preprocessing", "dinov2") == "fixture":
+            raise UserInputError("fixture preprocessing is supported only by the ONNX demo")
         if args.checkpoint is None:
             raise UserInputError("--checkpoint is required for the torch backend")
         from prooflens.inference.preprocess import create_dinov2_processor
@@ -615,16 +651,66 @@ def run_app_cli(args: argparse.Namespace) -> int:
     else:
         if args.model is None:
             raise UserInputError("--model is required for the ONNX backend")
+        from prooflens.inference.artifacts import (
+            discover_artifact_manifest,
+            load_artifact_metadata,
+            validate_artifact_pair,
+        )
         from prooflens.inference.onnx_backend import OnnxLogitBackend
-        from prooflens.inference.preprocess import create_dinov2_processor
+        from prooflens.inference.preprocess import (
+            FIXTURE_PREPROCESSING_VERSION,
+            PREPROCESSING_VERSION,
+            create_dinov2_processor,
+            create_fixture_processor,
+        )
+
+        preprocessing = getattr(args, "preprocessing", "dinov2")
+        manifest_path = getattr(args, "artifact_manifest", None)
+        if manifest_path is None:
+            manifest_path = discover_artifact_manifest(args.model)
+        metadata = load_artifact_metadata(manifest_path) if manifest_path is not None else None
+        if metadata is not None:
+            validate_artifact_pair(
+                metadata,
+                model_path=args.model,
+                calibration_path=args.calibration,
+            )
+        if preprocessing == "auto":
+            if metadata is None:
+                raise UserInputError(
+                    "automatic preprocessing requires artifact_manifest.json; "
+                    "use an explicit --preprocessing value only for a verified legacy bundle"
+                )
+            preprocessing = metadata.preprocessing_name
+        elif metadata is not None and preprocessing != metadata.preprocessing_name:
+            raise UserInputError(
+                f"requested preprocessing {preprocessing!r} conflicts with artifact manifest "
+                f"{metadata.preprocessing_name!r}"
+            )
+        expected_version = {
+            "dinov2": PREPROCESSING_VERSION,
+            "fixture": FIXTURE_PREPROCESSING_VERSION,
+        }[preprocessing]
+        if metadata is not None and metadata.preprocessing_version != expected_version:
+            raise UserInputError(
+                "artifact preprocessing version is unsupported: "
+                f"{metadata.preprocessing_version}"
+            )
+        if preprocessing == "fixture":
+            processor = create_fixture_processor()
+        else:
+            processor = create_dinov2_processor()
+        model_version = metadata.model_version if metadata else "prooflens-onnx"
 
         backend = OnnxLogitBackend(
             args.model,
-            create_dinov2_processor(),
-            model_version="prooflens-onnx",
+            processor,
+            model_version=model_version,
+            preprocessing_version=expected_version,
         )
     app = create_app(InferenceService.from_calibration(backend, args.calibration))
-    app.launch()
+    css = getattr(app, "prooflens_css", None)
+    app.launch(**({"css": css} if css else {}))
     return 0
 
 
