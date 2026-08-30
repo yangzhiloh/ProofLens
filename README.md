@@ -136,4 +136,7 @@ Do not use `git add -f artifacts/...` for the fixture bundle. Regenerate it with
 .\.venv\Scripts\python.exe -m ruff check .
 ```
 
+The same Ruff check and test suite run automatically in GitHub Actions for every pull request.
+Tests run on both supported Python versions, 3.11 and 3.12; superseded runs are cancelled.
+
 The required exported runtime is ONNX Runtime on CPU. OpenVINO acceleration is optional.
