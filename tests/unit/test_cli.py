@@ -1,21 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
 from types import SimpleNamespace
 
+import imagehash
 import pandas as pd
 import pyarrow as pa
 import pytest
 import yaml
-from PIL import Image
+from PIL import Image, ImageOps
 from pydantic import ValidationError
 
 from prooflens.data.hashing import sha256_file
 from prooflens.data.schema import ManifestRecord, records_to_frame
-
+from prooflens.data.splitting import build_split_groups
 
 def test_manifest_command_merges_acquired_sid_with_wildfake_and_hashes_rows(
     tmp_path: Path,
@@ -184,6 +186,39 @@ def test_primary_manifest_cli_combines_acquired_sid_and_wildfake(tmp_path: Path)
     assert exit_code == 0
     assert set(frame["dataset_name"]) == {"sid_set", "wildfake"}
     assert frame.loc[frame["label"] == 1, "generator_family"].nunique() >= 3
+
+
+def test_primary_manifest_cli_enriches_hashes_for_split_contract(tmp_path: Path) -> None:
+    from prooflens.cli import run_manifest_cli
+
+    config = write_primary_fixture(tmp_path)
+    acquired_sid = pd.read_parquet(tmp_path / "sid_set" / "manifest.parquet")
+    output = tmp_path / "primary.parquet"
+
+    exit_code = run_manifest_cli(argparse.Namespace(config=config, output=output))
+
+    frame = pd.read_parquet(output)
+    expected_sha256: list[str] = []
+    expected_phash: list[str] = []
+    for value in frame["path"]:
+        path = Path(value)
+        expected_sha256.append(hashlib.sha256(path.read_bytes()).hexdigest())
+        with Image.open(path) as image:
+            normalized = ImageOps.exif_transpose(image).convert("RGB")
+            expected_phash.append(str(imagehash.phash(normalized)))
+    assert exit_code == 0
+    assert frame["content_checksum"].tolist() == expected_sha256
+    assert frame["perceptual_hash"].tolist() == expected_phash
+    acquired_identity = acquired_sid.set_index("sample_id")[["path", "label"]].sort_index()
+    primary_sid_identity = (
+        frame.loc[frame["dataset_name"] == "sid_set"]
+        .set_index("sample_id")[["path", "label"]]
+        .sort_index()
+    )
+    pd.testing.assert_frame_equal(primary_sid_identity, acquired_identity)
+    grouped = build_split_groups(frame, max_phash_distance=4)
+    assert len(grouped) == len(frame)
+    assert grouped["split_group_id"].str.startswith("split-").all()
 
 
 def test_manifest_cli_reports_malformed_acquired_manifest_as_data_integrity_error(

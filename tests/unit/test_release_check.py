@@ -170,14 +170,40 @@ def test_release_check_detects_credential_split_across_scan_chunks(tmp_path: Pat
     assert "possible credential in: boundary.txt" in result.errors
 
 
-def test_release_check_skips_large_undecodable_files_safely(tmp_path: Path) -> None:
+def test_release_check_detects_credential_before_nul_byte(tmp_path: Path) -> None:
     root = _write_valid_project(tmp_path)
     credential = ("hf_" + "c" * 24).encode()
-    (root / "undecodable.dat").write_bytes(credential + b"x" * (2 * 1024 * 1024) + b"\xff")
+    (root / "nul.dat").write_bytes(credential + b"\x00binary payload")
 
     result = _run_fixture(root)
 
-    assert result.ok, result.errors
+    assert not result.ok
+    assert "possible credential in: nul.dat" in result.errors
+
+
+@pytest.mark.parametrize("encoding", ("utf-16-le", "utf-16-be"))
+def test_release_check_detects_utf16_like_credential_bytes(
+    tmp_path: Path, encoding: str
+) -> None:
+    root = _write_valid_project(tmp_path)
+    credential = "hf_" + "d" * 24
+    (root / "wide.dat").write_bytes(credential.encode(encoding))
+
+    result = _run_fixture(root)
+
+    assert not result.ok
+    assert "possible credential in: wide.dat" in result.errors
+
+
+def test_release_check_detects_credential_before_non_utf8_byte(tmp_path: Path) -> None:
+    root = _write_valid_project(tmp_path)
+    credential = ("hf_" + "e" * 24).encode()
+    (root / "undecodable.dat").write_bytes(credential + b"\xff")
+
+    result = _run_fixture(root)
+
+    assert not result.ok
+    assert "possible credential in: undecodable.dat" in result.errors
 
 
 @pytest.mark.parametrize("missing_field", MODEL_CARD_FIELDS)

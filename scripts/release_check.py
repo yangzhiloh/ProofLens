@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import codecs
 import os
 import re
 import subprocess
@@ -34,12 +33,10 @@ TEXT_SCAN_OVERLAP = 512
 _FORBIDDEN_NAMES = frozenset({".env", "id_rsa", "id_ed25519"})
 _PRIVATE_KEY_SUFFIXES = frozenset({".pem", ".key"})
 _MODEL_BINARY_SUFFIXES = frozenset({".ckpt", ".onnx", ".pt", ".pth", ".safetensors"})
-_PRIVATE_KEY_PATTERN = re.compile(
-    r"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----"
-)
-_TOKEN_PATTERN = re.compile(
-    r"(?i)(hf_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|"
-    r"api[_-]?key\s*[=:]\s*[^\s\"'<>]{8,})"
+_CREDENTIAL_BYTES_PATTERN = re.compile(
+    rb"(?i)(hf_[a-z0-9]{20,}|github_pat_[a-z0-9_]{20,}|"
+    rb"api[_-]?key\s*[=:]\s*[^\s\"'<>]{8,}|"
+    rb"-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----)"
 )
 _MARKDOWN_HEADING_PATTERN = re.compile(
     r"(?m)^#{1,6}[ \t]+(.+?)[ \t]*#*[ \t]*$"
@@ -181,23 +178,17 @@ def _read_text_safely(path: Path) -> str | None:
 
 
 def _contains_credential(path: Path) -> bool:
-    decoder = codecs.getincrementaldecoder("utf-8")("strict")
-    tail = ""
-    found = False
+    tail = b""
     try:
         with path.open("rb") as stream:
             while chunk := stream.read(TEXT_SCAN_CHUNK_BYTES):
-                if b"\0" in chunk:
-                    return False
-                text = tail + decoder.decode(chunk)
-                found = found or bool(
-                    _TOKEN_PATTERN.search(text) or _PRIVATE_KEY_PATTERN.search(text)
-                )
-                tail = text[-TEXT_SCAN_OVERLAP:]
-            final = tail + decoder.decode(b"", final=True)
-    except (OSError, UnicodeDecodeError):
-        return False
-    return found or bool(_TOKEN_PATTERN.search(final) or _PRIVATE_KEY_PATTERN.search(final))
+                normalized = (tail + chunk).replace(b"\0", b"")
+                if _CREDENTIAL_BYTES_PATTERN.search(normalized):
+                    return True
+                tail = normalized[-TEXT_SCAN_OVERLAP:]
+    except OSError:
+        return True
+    return bool(_CREDENTIAL_BYTES_PATTERN.search(tail))
 
 
 def _check_licence_declarations(root: Path, errors: list[str]) -> None:
