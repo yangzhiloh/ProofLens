@@ -1,5 +1,8 @@
 """Run the deterministic miniature ProofLens workflow without downloads."""
 
+# The direct-script path bootstrap below intentionally precedes project imports.
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse

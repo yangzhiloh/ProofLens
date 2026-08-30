@@ -95,6 +95,115 @@ def test_manifest_command_merges_acquired_sid_with_wildfake_and_hashes_rows(
     assert combined["perceptual_hash"].str.fullmatch(r"[0-9a-f]{16}").all()
 
 
+def _write_image(path: Path, color: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (4, 3), color).save(path)
+
+
+def write_primary_fixture(tmp_path: Path) -> Path:
+    sid_root = tmp_path / "sid_set"
+    sid_real = sid_root / "images" / "real.png"
+    sid_fake = sid_root / "images" / "fake.png"
+    _write_image(sid_real, "white")
+    _write_image(sid_fake, "black")
+    pd.DataFrame(
+        [
+            {
+                "sample_id": "sid-real",
+                "path": str(sid_real),
+                "label": 0,
+                "dataset_name": "sid_set",
+                "dataset_version": "pinned-revision",
+                "generator_family": "authentic",
+                "source_group_id": "sid-real",
+                "original_image_id": "sid-real",
+                "width": 4,
+                "height": 3,
+                "file_format": "PNG",
+                "licence_identifier": "CC-BY-4.0",
+                "content_checksum": "",
+                "perceptual_hash": "",
+                "split": "unassigned",
+            },
+            {
+                "sample_id": "sid-fake",
+                "path": str(sid_fake),
+                "label": 1,
+                "dataset_name": "sid_set",
+                "dataset_version": "pinned-revision",
+                "generator_family": "generated",
+                "source_group_id": "sid-fake",
+                "original_image_id": "sid-fake",
+                "width": 4,
+                "height": 3,
+                "file_format": "PNG",
+                "licence_identifier": "CC-BY-4.0",
+                "content_checksum": "",
+                "perceptual_hash": "",
+                "split": "unassigned",
+            },
+        ]
+    ).to_parquet(sid_root / "manifest.parquet", index=False)
+    wildfake_root = tmp_path / "wildfake"
+    _write_image(wildfake_root / "real" / "camera" / "real.png", "gray")
+    for family, color in (("flux", "red"), ("sdxl", "blue"), ("dalle3", "green")):
+        _write_image(wildfake_root / "fake" / family / "fake.png", color)
+    config_path = tmp_path / "primary.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "sources": [
+                    {"name": "sid_set", "root": str(sid_root), "allowed_labels": [0, 1]},
+                    {
+                        "name": "wildfake",
+                        "root": str(wildfake_root),
+                        "allowed_labels": [0, 1],
+                        "generator_labeled": True,
+                    },
+                ],
+                "maximum_corrupt_fraction": 0.01,
+                "require_both_labels": True,
+                "minimum_generator_families": 3,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return config_path
+
+
+def test_primary_manifest_cli_combines_acquired_sid_and_wildfake(tmp_path: Path) -> None:
+    from prooflens.cli import run_manifest_cli
+
+    output = tmp_path / "primary.parquet"
+
+    exit_code = run_manifest_cli(
+        argparse.Namespace(config=write_primary_fixture(tmp_path), output=output)
+    )
+
+    frame = pd.read_parquet(output)
+    assert exit_code == 0
+    assert set(frame["dataset_name"]) == {"sid_set", "wildfake"}
+    assert frame.loc[frame["label"] == 1, "generator_family"].nunique() >= 3
+
+
+def test_manifest_cli_reports_malformed_acquired_manifest_as_data_integrity_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from prooflens.cli import dispatch
+
+    config_path = write_primary_fixture(tmp_path)
+    pd.DataFrame([{"sample_id": "sid-real"}]).to_parquet(
+        tmp_path / "sid_set" / "manifest.parquet", index=False
+    )
+
+    exit_code = dispatch(
+        argparse.Namespace(command="manifest", config=config_path, output=tmp_path / "primary.parquet")
+    )
+
+    assert exit_code == 3
+    assert "data integrity error" in capsys.readouterr().err
+
+
 def test_select_command_uses_current_checkpoint_ranking(tmp_path) -> None:
     from prooflens.cli import run_select_cli
 
@@ -558,3 +667,127 @@ def test_app_rejects_preprocessing_that_conflicts_with_manifest(tmp_path) -> Non
                 artifact_manifest=None,
             )
         )
+
+
+def test_evaluate_stress_command_requires_selection_split_and_output() -> None:
+    from prooflens.cli import COMMANDS, build_parser
+
+    parsed = build_parser().parse_args(
+        [
+            "evaluate-stress",
+            "--selection",
+            "selection.json",
+            "--split",
+            "test",
+            "--output",
+            "stress-output",
+        ]
+    )
+
+    assert "evaluate-stress" in COMMANDS
+    assert parsed.command == "evaluate-stress"
+    assert parsed.selection == Path("selection.json")
+    assert parsed.split == "test"
+    assert parsed.output == Path("stress-output")
+
+
+def test_evaluate_stress_uses_selected_checkpoint_and_writes_split_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prooflens.cli import run_evaluate_stress_cli
+    from prooflens.data.hashing import sha256_file
+    from prooflens.inference import preprocess, torch_backend
+
+    run_dir = tmp_path / "selected-run"
+    run_dir.mkdir()
+    images = []
+    for split, label, color in (
+        ("validation", 0, "red"),
+        ("validation", 1, "blue"),
+        ("test", 0, "green"),
+        ("test", 1, "yellow"),
+    ):
+        path = tmp_path / f"{split}-{label}.png"
+        _write_image(path, color)
+        images.append(
+            {
+                "sample_id": f"{split}-{label}",
+                "path": str(path),
+                "label": label,
+                "dataset_name": "fixture",
+                "dataset_version": "fixture-v1",
+                "generator_family": "real" if label == 0 else "generator",
+                "source_group_id": f"group-{split}-{label}",
+                "original_image_id": f"image-{split}-{label}",
+                "width": 4,
+                "height": 3,
+                "file_format": "PNG",
+                "licence_identifier": "CC0-1.0",
+                "content_checksum": "",
+                "perceptual_hash": "",
+                "split": split,
+                "split_group_id": f"group-{split}-{label}",
+            }
+        )
+    manifest = tmp_path / "split.parquet"
+    pd.DataFrame(images).to_parquet(manifest, index=False)
+    split_hash = sha256_file(manifest)
+    manifest.with_suffix(".json").write_text(
+        json.dumps({"split_sha256": split_hash}), encoding="utf-8"
+    )
+    (run_dir / "run_metadata.json").write_text(
+        json.dumps({"split_sha256": split_hash}), encoding="utf-8"
+    )
+    (run_dir / "config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "seed": 17,
+                "data": {"manifest": str(manifest)},
+                "model": {"name": "fixture/model", "stage": "head"},
+                "training": {"epochs": 1, "batch_size": 2},
+                "output_dir": str(run_dir),
+            }
+        ),
+        encoding="utf-8",
+    )
+    selection = tmp_path / "selection.json"
+    selection.write_text(
+        json.dumps(
+            {
+                "checkpoint_id": "selected-run",
+                "run_dir": str(run_dir),
+                "validation_split_hash": split_hash,
+            }
+        ),
+        encoding="utf-8",
+    )
+    requested_checkpoints: list[Path] = []
+
+    class FakeBackend:
+        def predict_logit(self, image: Image.Image) -> float:
+            return float(sum(image.getpixel((0, 0)))) / 1000
+
+    def from_checkpoint(path: Path, **_kwargs: object) -> FakeBackend:
+        requested_checkpoints.append(path)
+        return FakeBackend()
+
+    monkeypatch.setattr(torch_backend.TorchLogitBackend, "from_checkpoint", from_checkpoint)
+    monkeypatch.setattr(preprocess, "create_dinov2_processor", lambda: object())
+
+    output = tmp_path / "stress-output"
+    exit_code = run_evaluate_stress_cli(
+        argparse.Namespace(selection=selection, split="test", output=output)
+    )
+
+    predictions = pd.read_parquet(output / "predictions-stress.parquet")
+    metrics = json.loads((output / "stress-metrics.json").read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert requested_checkpoints == [run_dir / "checkpoints" / "best.pt"]
+    assert set(predictions["split"]) == {"test"}
+    assert len(predictions) == 8
+    assert set(metrics["conditions"]) == {
+        "webp_q80",
+        "webp_q50",
+        "screenshot_1440",
+        "screenshot_1080",
+    }

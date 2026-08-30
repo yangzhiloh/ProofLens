@@ -9,7 +9,6 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-import pyarrow as pa
 import yaml
 from pydantic import ValidationError
 
@@ -29,6 +28,7 @@ COMMANDS = (
     "split",
     "train",
     "evaluate",
+    "evaluate-stress",
     "select",
     "calibrate",
     "report",
@@ -74,6 +74,10 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument("--selection", type=Path)
     evaluate.add_argument("--suite", choices=("clean", "clean-robust-generator"), required=True)
     evaluate.add_argument("--split", choices=("validation", "test"), default="validation")
+    evaluate_stress = subparsers.choices["evaluate-stress"]
+    evaluate_stress.add_argument("--selection", type=Path, required=True)
+    evaluate_stress.add_argument("--split", choices=("validation", "test"), default="validation")
+    evaluate_stress.add_argument("--output", type=Path, required=True)
     select = subparsers.choices["select"]
     select.add_argument("--runs", type=Path, nargs="+", required=True)
     select.add_argument("--output", type=Path, default=Path("artifacts/selection.json"))
@@ -112,6 +116,7 @@ def dispatch(args: argparse.Namespace) -> int:
         "split": run_split_cli,
         "train": run_train_cli,
         "evaluate": run_evaluate_cli,
+        "evaluate-stress": run_evaluate_stress_cli,
         "select": run_select_cli,
         "calibrate": run_calibrate_cli,
         "report": run_report_cli,
@@ -132,19 +137,31 @@ def dispatch(args: argparse.Namespace) -> int:
     except DataIntegrityError as error:
         print(f"data integrity error: {error}", file=sys.stderr)
         return 3
-    except pa.ArrowException as error:
-        print(f"data integrity error: {error}", file=sys.stderr)
-        return 3
     except (TrainingError, ExportError) as error:
         print(f"model error: {error}", file=sys.stderr)
         return 4
     except ProofLensError as error:
         print(f"prooflens error: {error}", file=sys.stderr)
         return 2
+    except Exception as error:
+        if _is_arrow_exception(error):
+            print(f"data integrity error: {error}", file=sys.stderr)
+            return 3
+        raise
 
 
 def main() -> None:
     raise SystemExit(dispatch(build_parser().parse_args()))
+
+
+def _is_arrow_exception(error: BaseException) -> bool:
+    """Identify optional Parquet errors without importing PyArrow at CLI startup."""
+
+    try:
+        import pyarrow as pa
+    except ImportError:
+        return False
+    return isinstance(error, pa.ArrowException)
 
 
 def run_acquire_cli(args: argparse.Namespace) -> int:
@@ -157,7 +174,7 @@ def run_acquire_cli(args: argparse.Namespace) -> int:
 
 def run_manifest_cli(args: argparse.Namespace) -> int:
     from prooflens.data.acquire import load_primary_policy, validate_primary_manifest
-    from prooflens.data.adapters.sid_set import SidSetAdapter
+    from prooflens.data.adapters.local_manifest import CanonicalParquetAdapter
     from prooflens.data.adapters.wildfake import WildFakeAdapter
     from prooflens.data.manifest import build_manifest
 
@@ -165,7 +182,7 @@ def run_manifest_cli(args: argparse.Namespace) -> int:
     adapters = []
     for source in policy.sources:
         if source.name == "sid_set":
-            adapters.append(SidSetAdapter(version="configured", root=source.root))
+            adapters.append(CanonicalParquetAdapter(source.root / "manifest.parquet", "sid_set"))
         elif source.name == "wildfake":
             adapters.append(
                 WildFakeAdapter(
@@ -327,6 +344,44 @@ def run_evaluate_cli(args: argparse.Namespace) -> int:
     (run_dir / "report" / metrics_name).write_text(
         json.dumps(payload, indent=2, default=str) + "\n",
         encoding="utf-8",
+    )
+    print(prediction_path)
+    return 0
+
+
+def run_evaluate_stress_cli(args: argparse.Namespace) -> int:
+    """Evaluate the selected checkpoint on supplemental redistribution conditions."""
+
+    import pandas as pd
+
+    from prooflens.data.dataset import SourceImageDataset
+    from prooflens.evaluation.stress import (
+        compute_stress_metrics,
+        evaluate_stress,
+        write_stress_predictions,
+    )
+    from prooflens.inference.preprocess import create_dinov2_processor
+    from prooflens.inference.torch_backend import TorchLogitBackend
+    from prooflens.models.detector import DinoDetector
+
+    selection = json.loads(args.selection.read_text(encoding="utf-8"))
+    run_dir = _resolve_run_dir(None, args.selection)
+    _verified_validation_split_hash(run_dir, selection)
+    config = load_config(run_dir / "config.yaml").resolve(Path.cwd())
+    backend = TorchLogitBackend.from_checkpoint(
+        run_dir / "checkpoints" / "best.pt",
+        model_factory=lambda: DinoDetector.from_pretrained(config.model.name),
+        processor=create_dinov2_processor(),
+    )
+    selected = pd.read_parquet(config.data.manifest)
+    selected = selected.loc[selected["split"] == args.split].reset_index(drop=True)
+    predictions = evaluate_stress(
+        SourceImageDataset(selected), backend, checkpoint_id="best", seed=config.seed
+    )
+    args.output.mkdir(parents=True, exist_ok=True)
+    prediction_path = write_stress_predictions(predictions, args.output / "predictions-stress.parquet")
+    (args.output / "stress-metrics.json").write_text(
+        json.dumps(compute_stress_metrics(predictions), indent=2) + "\n", encoding="utf-8"
     )
     print(prediction_path)
     return 0
@@ -735,6 +790,7 @@ COMMAND_HANDLERS.update(
         "split": run_split_cli,
         "train": run_train_cli,
         "evaluate": run_evaluate_cli,
+        "evaluate-stress": run_evaluate_stress_cli,
         "select": run_select_cli,
         "calibrate": run_calibrate_cli,
         "report": run_report_cli,
