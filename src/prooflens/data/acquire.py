@@ -30,7 +30,7 @@ ACQUISITION_METADATA_NAME = "acquisition.json"
 @dataclass(frozen=True)
 class SidAcquisitionConfig:
     dataset_id: str = "saberzl/SID_Set"
-    split: str = "train"
+    split: str = "validation"
     streaming: bool = True
     revision: str = SID_SET_PINNED_REVISION
     per_class: int = 10_000
@@ -62,8 +62,10 @@ class SidAcquisitionConfig:
             result = cls(**raw)
         if result.dataset_id != "saberzl/SID_Set":
             raise UserInputError("SID acquisition dataset_id must be saberzl/SID_Set")
-        if result.split != "train" or not result.streaming:
-            raise UserInputError("SID acquisition must stream the train split")
+        if result.split != "validation" or not result.streaming:
+            raise UserInputError(
+                "SID acquisition must stream the pinned validation split"
+            )
         if not result.revision.strip():
             raise UserInputError("SID acquisition revision must be recorded")
         if result.per_class < 1:

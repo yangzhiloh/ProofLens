@@ -60,7 +60,11 @@ def test_acquire_sid_subset_persists_rgb_images_manifest_and_metadata(tmp_path: 
     def loader(dataset_id: str, **kwargs: object) -> TinyStreamingDataset:
         if dataset_id != "saberzl/SID_Set":
             raise AssertionError("unexpected dataset")
-        if kwargs != {"split": "train", "streaming": True, "revision": "pinned-123"}:
+        if kwargs != {
+            "split": "validation",
+            "streaming": True,
+            "revision": "pinned-123",
+        }:
             raise AssertionError("streaming contract changed")
         return TinyStreamingDataset(rows)
 
@@ -88,7 +92,7 @@ def test_acquire_sid_subset_persists_rgb_images_manifest_and_metadata(tmp_path: 
         "dataset_revision": "pinned-123",
         "licence_identifier": "CC-BY-4.0",
         "observed_dataset_revision": "observed-revision-987",
-        "split": "train",
+        "split": "validation",
     }
 
 

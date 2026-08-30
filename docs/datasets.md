@@ -18,7 +18,8 @@ generator-labelled sources. CIFAKE cannot enter primary training under the curre
 
 ## SID-Set automated acquisition
 
-`configs/data/sid_subset.yaml` identifies `saberzl/SID_Set`, streams its `train` split at the
+`configs/data/sid_subset.yaml` identifies `saberzl/SID_Set`, streams its only published
+`validation` split at the
 pinned revision, and selects 10,000 rows per binary class. Label values outside `0` and `1` are
 excluded. The operation fails without publishing a partial destination if either class is
 underfilled.
