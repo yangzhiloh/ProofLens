@@ -42,7 +42,11 @@ class LogitOnlyWrapper(nn.Module):
 
 
 def export_onnx(model: nn.Module, sample_pixels: Tensor, onnx_path: Path) -> Path:
-    """Export a dynamic-batch opset-18 ONNX model atomically with Dynamo."""
+    """Export a dynamic-batch opset-18 ONNX model atomically.
+
+    The legacy exporter is intentional here: the pinned PyTorch 2.5 runtime has
+    a Dynamo exporter failure when a model reshapes with a symbolic batch size.
+    """
 
     if not isinstance(model, nn.Module):
         raise TypeError("ONNX export model must be a torch.nn.Module")
@@ -55,7 +59,6 @@ def export_onnx(model: nn.Module, sample_pixels: Tensor, onnx_path: Path) -> Pat
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = destination.with_name(f".{destination.stem}.{uuid4().hex}.onnx")
     wrapper = LogitOnlyWrapper(model).eval()
-    batch_dimension = torch.export.Dim("batch", min=1, max=32)
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -69,8 +72,11 @@ def export_onnx(model: nn.Module, sample_pixels: Tensor, onnx_path: Path) -> Pat
                 temporary_path,
                 input_names=["pixel_values"],
                 output_names=["logits"],
-                dynamo=True,
-                dynamic_shapes={"pixel_values": {0: batch_dimension}},
+                dynamo=False,
+                dynamic_axes={
+                    "pixel_values": {0: "batch"},
+                    "logits": {0: "batch"},
+                },
                 opset_version=18,
                 external_data=False,
             )

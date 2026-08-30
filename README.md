@@ -30,7 +30,7 @@ tests. OpenVINO is optional.
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pip install -c requirements.lock -e ".[dev]"
 .\.venv\Scripts\Activate.ps1
 ```
 
@@ -39,8 +39,12 @@ py -3.11 -m venv .venv
 ```bash
 python3.11 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -e '.[dev]'
+.venv/bin/python -m pip install -c requirements.lock -e '.[dev]'
 source .venv/bin/activate
+
+requirements.lock pins the direct project dependencies for Python 3.11 and
+3.12 on Windows and Linux. The platform-specific resolver still selects the
+correct wheel and transitive dependencies.
 ```
 
 The remaining commands assume the virtual environment is active and use the same `python`

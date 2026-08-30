@@ -9,7 +9,6 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-import pyarrow as pa
 import yaml
 from pydantic import ValidationError
 
@@ -138,19 +137,31 @@ def dispatch(args: argparse.Namespace) -> int:
     except DataIntegrityError as error:
         print(f"data integrity error: {error}", file=sys.stderr)
         return 3
-    except pa.ArrowException as error:
-        print(f"data integrity error: {error}", file=sys.stderr)
-        return 3
     except (TrainingError, ExportError) as error:
         print(f"model error: {error}", file=sys.stderr)
         return 4
     except ProofLensError as error:
         print(f"prooflens error: {error}", file=sys.stderr)
         return 2
+    except Exception as error:
+        if _is_arrow_exception(error):
+            print(f"data integrity error: {error}", file=sys.stderr)
+            return 3
+        raise
 
 
 def main() -> None:
     raise SystemExit(dispatch(build_parser().parse_args()))
+
+
+def _is_arrow_exception(error: BaseException) -> bool:
+    """Identify optional Parquet errors without importing PyArrow at CLI startup."""
+
+    try:
+        import pyarrow as pa
+    except ImportError:
+        return False
+    return isinstance(error, pa.ArrowException)
 
 
 def run_acquire_cli(args: argparse.Namespace) -> int:
