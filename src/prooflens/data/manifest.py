@@ -6,6 +6,7 @@ from uuid import uuid4
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from prooflens.data.adapters.base import DatasetAdapter
+from prooflens.data.hashing import enrich_hashes
 from prooflens.data.schema import ManifestRecord, records_to_frame
 from prooflens.errors import ManifestBuildError
 
@@ -42,7 +43,7 @@ def build_manifest(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = output_path.with_name(f".{output_path.name}.{uuid4().hex}.tmp")
     try:
-        records_to_frame(valid_records).to_parquet(temporary_path, index=False)
+        enrich_hashes(records_to_frame(valid_records)).to_parquet(temporary_path, index=False)
         temporary_path.replace(output_path)
     finally:
         if temporary_path.exists():
