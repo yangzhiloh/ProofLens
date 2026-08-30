@@ -19,7 +19,7 @@ workflow is a software reproducibility check, not evidence of primary-model perf
 - uv 0.12.0
 - Git for the tracked-file release check
 - Network access for SID-Set acquisition and the first DINOv2 download
-- Manually obtained WildFake data whose terms have been reviewed by the user
+- The pinned CC BY 4.0 AIGenImages2026 paired evaluation subset
 
 CUDA is not required by the code or CI. CI exercises Python 3.11 on Windows and Linux with CPU
 tests. OpenVINO is optional.
@@ -82,17 +82,17 @@ Acquire the pinned balanced SID-Set subset:
 python -m prooflens.cli acquire --config configs/data/sid_subset.yaml --output data/raw/sid_set
 ```
 
-Manually place an approved WildFake export at `data/raw/wildfake`. The adapter requires a
-nonempty `real/` directory and a nonempty `fake/` directory whose child directories identify
-generator families. Do not redistribute WildFake until its terms have been verified for the
-specific copy.
+The smaller-run primary policy uses the pinned AIGenImages2026 paired validation subset at
+`data/raw/aigenimages2026/val`. It supplies 559 authentic/synthetic pairs across 19 generator
+families under CC BY 4.0. Pair members share a split group to prevent semantic leakage. SID-Set
+remains an optional larger supplement rather than a requirement for this run.
 
 Build, audit, and split the primary manifest:
 
 ```text
 python -m prooflens.cli manifest --config configs/data/primary.yaml --output artifacts/manifests/primary.parquet
 python -m prooflens.cli audit --manifest artifacts/manifests/primary.parquet --output artifacts/reports/data-audit
-python -m prooflens.cli split --manifest artifacts/manifests/primary.parquet --output artifacts/manifests/primary-split.parquet --seed 17
+python -m prooflens.cli split --manifest artifacts/manifests/primary.parquet --output artifacts/manifests/primary-split.parquet --seed 17 --minimum-holdout-family-rows 20
 ```
 
 The manifest policy requires both binary labels and at least three fake generator families from
@@ -170,7 +170,7 @@ not forensic proof.
 
 ```text
 data/raw/sid_set/                         local SID-Set images and manifest
-data/raw/wildfake/                        local manually acquired WildFake export
+data/raw/aigenimages2026/val/             pinned paired multi-generator subset
 artifacts/manifests/primary.parquet       canonical unsplit manifest
 artifacts/manifests/primary-split.parquet grouped split used by every experiment
 artifacts/runs/e0 ... e4/                 resolved config, metadata, checkpoints, predictions

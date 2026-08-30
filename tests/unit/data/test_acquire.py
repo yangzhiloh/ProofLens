@@ -236,7 +236,7 @@ def test_primary_policy_has_top_level_three_family_gate_and_excludes_cifake() ->
 
     assert raw["minimum_generator_families"] == 3
     assert all("minimum_generator_families" not in source for source in raw["sources"])
-    assert {source["name"] for source in raw["sources"]} == {"sid_set", "wildfake"}
+    assert {source["name"] for source in raw["sources"]} == {"aigenimages2026"}
     assert load_primary_policy(policy_path).minimum_generator_families == 3
 
 
@@ -256,7 +256,7 @@ def test_primary_policy_rejects_missing_label_and_too_few_fake_families() -> Non
     missing_real = pd.DataFrame(
         {
             "label": [1, 1, 1],
-            "dataset_name": ["wildfake"] * 3,
+            "dataset_name": ["aigenimages2026"] * 3,
             "generator_family": ["flux", "sdxl", "dalle3"],
         }
     )
@@ -266,7 +266,7 @@ def test_primary_policy_rejects_missing_label_and_too_few_fake_families() -> Non
     two_families = pd.DataFrame(
         {
             "label": [0, 1, 1],
-            "dataset_name": ["sid_set", "wildfake", "wildfake"],
+            "dataset_name": ["aigenimages2026"] * 3,
             "generator_family": ["authentic", "flux", "sdxl"],
         }
     )
@@ -283,10 +283,10 @@ def test_primary_policy_rejects_unidentified_dataset_names(
         {
             "label": [0, 1, 1, 1, 0],
             "dataset_name": [
-                "sid_set",
-                "wildfake",
-                "wildfake",
-                "wildfake",
+                "aigenimages2026",
+                "aigenimages2026",
+                "aigenimages2026",
+                "aigenimages2026",
                 unidentified_name,
             ],
             "generator_family": ["authentic", "flux", "sdxl", "dalle3", "authentic"],
@@ -302,7 +302,7 @@ def test_primary_policy_counts_generator_families_across_approved_sources() -> N
     frame = pd.DataFrame(
         {
             "label": [0, 1, 1, 1, 1],
-            "dataset_name": ["sid_set", "sid_set", "wildfake", "wildfake", "wildfake"],
+            "dataset_name": ["aigenimages2026"] * 5,
             "generator_family": ["authentic", "generated", "flux", "sdxl", "dalle3"],
         }
     )

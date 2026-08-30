@@ -143,6 +143,21 @@ def _dataset_structure(name: str, path: Path) -> Check:
     if name == "cifake":
         valid = all((path / directory).is_dir() for directory in ("REAL", "FAKE"))
         return Check(f"dataset-{name}", "pass" if valid else "block", "CIFAKE REAL/FAKE layout" if valid else "CIFAKE requires REAL and FAKE directories")
+    if name == "aigenimages2026":
+        required = (path / "eval_real_pairs.csv", path / "0_real", path / "1_fake")
+        families = (
+            [item for item in (path / "1_fake").iterdir() if item.is_dir()]
+            if (path / "1_fake").is_dir()
+            else []
+        )
+        valid = all(candidate.exists() for candidate in required) and len(families) >= 3
+        return Check(
+            f"dataset-{name}",
+            "pass" if valid else "block",
+            "paired AIGenImages2026 layout with at least three generator families"
+            if valid
+            else "AIGenImages2026 requires pair metadata, real images, and three fake families",
+        )
     generator_root = path / "fake"
     families = list(generator_root.iterdir()) if generator_root.is_dir() else []
     valid = (path / "real").is_dir() and len([item for item in families if item.is_dir()]) >= 3
@@ -185,7 +200,7 @@ def _next_commands() -> list[str]:
         "prooflens acquire --config configs/data/sid_subset.yaml --output data/raw/sid_set",
         "prooflens manifest --config configs/data/primary.yaml --output artifacts/manifests/primary.parquet",
         "prooflens audit --manifest artifacts/manifests/primary.parquet --output artifacts/reports/data-audit",
-        "prooflens split --manifest artifacts/manifests/primary.parquet --output artifacts/manifests/primary-split.parquet --seed 17",
+        "prooflens split --manifest artifacts/manifests/primary.parquet --output artifacts/manifests/primary-split.parquet --seed 17 --minimum-holdout-family-rows 20",
         "prooflens train --config configs/experiments/e0_pilot.yaml",
     ]
 

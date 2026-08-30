@@ -1,9 +1,6 @@
 sources:
-  - name: sid_set
-    root: data/raw/sid_set
-    allowed_labels: [0, 1]
-  - name: wildfake
-    root: data/raw/wildfake
+  - name: aigenimages2026
+    root: data/raw/aigenimages2026/val
     allowed_labels: [0, 1]
     generator_labeled: true
 maximum_corrupt_fraction: 0.01

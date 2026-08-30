@@ -18,7 +18,7 @@ def test_preflight_is_read_only_and_keeps_unverified_sources_blocked() -> None:
     assert report["safety"] == "No dataset download or training was performed."
     assert checks["licence-sid_set"]["status"] == "pass"
     assert checks["licence-cifake"]["status"] == "block"
-    assert checks["licence-wildfake"]["status"] == "block"
+    assert checks["licence-aigenimages2026"]["status"] == "pass"
     assert checks["robustness-transforms"]["status"] == "pass"
     assert report["ready_for_training"] is False
 

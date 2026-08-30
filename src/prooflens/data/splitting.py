@@ -276,6 +276,11 @@ def assign_grouped_splits(frame: pd.DataFrame, policy: SplitPolicy) -> pd.DataFr
     )
     result.loc[result["split_group_id"].isin(test_groups), "split"] = "generator_test"
 
+    holdouts_missing_real = [
+        split
+        for split in ("generator_validation", "generator_test")
+        if not (result.loc[result["split"] == split, "label"] == 0).any()
+    ]
     real_only_groups = sorted(
         group_id
         for group_id, group in result[result["split"] == "unassigned"].groupby(
@@ -283,23 +288,32 @@ def assign_grouped_splits(frame: pd.DataFrame, policy: SplitPolicy) -> pd.DataFr
         )
         if set(group["label"].astype(int)) == {0}
     )
-    real_count = max(
-        1,
-        int(np.floor(len(real_only_groups) * policy.generator_evaluation_real_fraction + 0.5)),
+    real_count = (
+        max(
+            1,
+            int(
+                np.floor(
+                    len(real_only_groups)
+                    * policy.generator_evaluation_real_fraction
+                    + 0.5
+                )
+            ),
+        )
+        if holdouts_missing_real
+        else 0
     )
-    if len(real_only_groups) < 2 * real_count:
+    required_real_groups = len(holdouts_missing_real) * real_count
+    if len(real_only_groups) < required_real_groups:
         raise DataIntegrityError(
             "generator evaluation requires disjoint real groups for both holdouts; "
-            f"needed {2 * real_count}, found {len(real_only_groups)} real groups"
+            f"needed {required_real_groups}, found {len(real_only_groups)} real groups"
         )
     rng = np.random.default_rng(policy.seed)
     chosen_real = np.asarray(real_only_groups, dtype=object)[rng.permutation(len(real_only_groups))]
-    real_validation = set(chosen_real[:real_count])
-    real_test = set(chosen_real[real_count : 2 * real_count])
-    result.loc[result["split_group_id"].isin(real_validation), "split"] = (
-        "generator_validation"
-    )
-    result.loc[result["split_group_id"].isin(real_test), "split"] = "generator_test"
+    for index, split in enumerate(holdouts_missing_real):
+        start = index * real_count
+        selected_real = set(chosen_real[start : start + real_count])
+        result.loc[result["split_group_id"].isin(selected_real), "split"] = split
 
     remaining = result[result["split"] == "unassigned"]
     assignments = _three_way_group_assignment(remaining, policy)

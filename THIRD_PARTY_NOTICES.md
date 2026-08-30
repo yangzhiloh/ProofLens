@@ -39,6 +39,18 @@ Dataset contents are not distributed by this repository.
 CIFAKE is excluded from primary training. Dataset contents are not distributed by this
 repository.
 
+## AIGenImages2026
+
+- [Official dataset card](https://huggingface.co/datasets/pthan12/AIGenImages2026)
+- Pinned revision: `073e1924d9d0d85ac97a53b07947b6ac95ce241c`
+- Licence declaration: CC-BY-4.0
+- Dataset paper: “Automated In-the-Wild Data Collection for Continual AI Generated Image
+  Detection,” MAD '26, DOI 10.1145/3810988.3812662
+
+ProofLens uses the paired validation subset and preserves generator identities and pair groups.
+Retain the dataset citation and CC BY 4.0 attribution. Dataset contents are not distributed by
+this repository.
+
 ## WildFake
 
 - [Official repository recorded by the project](https://github.com/hy-zpg/AIGC-Image-Detection-Dataset)

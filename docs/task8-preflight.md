@@ -27,23 +27,20 @@ The source registry is `configs/data/task8_sources.yaml`.
   downloadable version, accept any terms, and only then change `approved_for_acquisition` to
   `true`. It remains supplemental stress-only because its low-resolution/source characteristics
   can create shortcuts in primary training.
-- WildFake: use the translation button on the ModelScope page, save the translated licence and
-  usage terms with the experiment records, confirm research/training and redistribution rights,
-  and only then change `approved_for_acquisition` to `true`. Its local export must contain
-  `real/` and at least three direct generator-family directories below `fake/`.
+- AIGenImages2026: the pinned CC BY 4.0 paired validation subset replaces WildFake in the default
+  primary policy and supplies 19 generator families. Keep every pair in one split group.
 
 Approval means permission to acquire and use the dataset for this project; it does not imply that
 raw images may be committed or redistributed. `data/` and `artifacts/` remain ignored.
 
 ## Dataset and storage preparation
 
-Reserve at least 100 GiB free before acquisition. The actual requirement depends on the WildFake
-export and provider caches. Configure Kaggle credentials without committing them. The preflight
+Reserve at least 100 GiB free before acquisition. The actual requirement depends on provider
+caches. Configure Kaggle credentials without committing them. The preflight
 only checks for `KAGGLE_API_TOKEN` or `~/.kaggle/kaggle.json`; it never reads or prints a secret.
 
 Once the human gates are cleared, run the commands listed in the preflight JSON in order. SID-Set
-has an automated pinned acquisition command. CIFAKE and WildFake remain manual imports so their
-terms and exact local copies are consciously reviewed.
+has an automated pinned acquisition command. CIFAKE remains a manual stress-only import.
 
 ## Pilot before full training
 
