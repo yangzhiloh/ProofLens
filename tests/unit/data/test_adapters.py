@@ -9,7 +9,7 @@ from prooflens.data.adapters.cifake import CifakeAdapter
 from prooflens.data.adapters.sid_set import SidSetAdapter
 from prooflens.data.adapters.wildfake import WildFakeAdapter
 from prooflens.data.manifest import build_manifest
-from prooflens.data.schema import MANIFEST_COLUMNS, ManifestRecord
+from prooflens.data.schema import MANIFEST_COLUMNS, ManifestRecord, records_to_frame
 from prooflens.errors import DataIntegrityError, ManifestBuildError
 
 
@@ -64,10 +64,36 @@ def test_sid_adapter_excludes_tampered_label_two(tmp_path: Path) -> None:
     assert [record.label for record in records] == [0, 1]
 
 
-def test_sid_adapter_rejects_root_scanning_without_verified_metadata(tmp_path: Path) -> None:
+def test_sid_adapter_rejects_root_scanning_without_acquired_manifest(tmp_path: Path) -> None:
     (tmp_path / "tampered").mkdir()
-    with pytest.raises(DataIntegrityError, match="metadata"):
+    with pytest.raises(DataIntegrityError, match="acquired manifest is missing"):
         list(SidSetAdapter(version="main", root=tmp_path).scan())
+
+
+def test_sid_adapter_rejects_acquired_rows_from_another_dataset(tmp_path: Path) -> None:
+    path = tmp_path / "inside.jpg"
+    Image.new("RGB", (4, 3), "white").save(path)
+    records_to_frame([_record(path, "wrong-dataset")]).to_parquet(
+        tmp_path / "manifest.parquet",
+        index=False,
+    )
+
+    with pytest.raises(DataIntegrityError, match="dataset_name 'fixture'"):
+        list(SidSetAdapter(version="main", root=tmp_path).scan())
+
+
+def test_sid_adapter_rejects_acquired_paths_outside_root(tmp_path: Path) -> None:
+    root = tmp_path / "sid"
+    root.mkdir()
+    outside = tmp_path / "outside.jpg"
+    Image.new("RGB", (4, 3), "white").save(outside)
+    record = _record(outside, "outside").model_copy(
+        update={"dataset_name": "sid_set"}
+    )
+    records_to_frame([record]).to_parquet(root / "manifest.parquet", index=False)
+
+    with pytest.raises(DataIntegrityError, match="points outside"):
+        list(SidSetAdapter(version="main", root=root).scan())
 
 
 def test_wildfake_adapter_reads_generator_from_hierarchy(wildfake_fixture: Path) -> None:
@@ -151,6 +177,8 @@ def test_manifest_builder_persists_decoded_records_atomically(
     assert frame.loc[0, "width"] == 4
     assert frame.loc[0, "height"] == 3
     assert frame.loc[0, "file_format"] == "JPEG"
+    assert len(frame.loc[0, "content_checksum"]) == 64
+    assert len(frame.loc[0, "perceptual_hash"]) == 16
     assert not list(tmp_path.glob(".manifest.parquet.*.tmp"))
 
 

@@ -10,9 +10,89 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 import yaml
+from PIL import Image
 from pydantic import ValidationError
 
 from prooflens.data.hashing import sha256_file
+from prooflens.data.schema import ManifestRecord, records_to_frame
+
+
+def test_manifest_command_merges_acquired_sid_with_wildfake_and_hashes_rows(
+    tmp_path: Path,
+) -> None:
+    from prooflens.cli import run_manifest_cli
+
+    sid_root = tmp_path / "sid"
+    sid_images = sid_root / "images"
+    sid_images.mkdir(parents=True)
+    sid_records = []
+    for label, name, color in ((0, "real", "white"), (1, "fake", "black")):
+        path = sid_images / f"{name}.png"
+        Image.new("RGB", (8, 6), color).save(path)
+        sid_records.append(
+            ManifestRecord(
+                sample_id=f"sid-{name}",
+                path=path,
+                label=label,
+                dataset_name="sid_set",
+                dataset_version="fixture-revision",
+                generator_family="authentic" if label == 0 else "generated",
+                source_group_id=f"sid-{name}",
+                original_image_id=f"sid-{name}",
+                width=8,
+                height=6,
+                file_format="PNG",
+                licence_identifier="Apache-2.0",
+            )
+        )
+    records_to_frame(sid_records).to_parquet(sid_root / "manifest.parquet", index=False)
+
+    wildfake_root = tmp_path / "wildfake"
+    (wildfake_root / "real").mkdir(parents=True)
+    Image.new("RGB", (8, 6), "gray").save(wildfake_root / "real" / "real.png")
+    for family, color in (("dalle3", "red"), ("flux", "green"), ("sdxl", "blue")):
+        family_root = wildfake_root / "fake" / family
+        family_root.mkdir(parents=True)
+        Image.new("RGB", (8, 6), color).save(family_root / "fake.png")
+
+    config = tmp_path / "primary.yaml"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "sources": [
+                    {
+                        "name": "sid_set",
+                        "root": str(sid_root),
+                        "allowed_labels": [0, 1],
+                    },
+                    {
+                        "name": "wildfake",
+                        "root": str(wildfake_root),
+                        "allowed_labels": [0, 1],
+                        "generator_labeled": True,
+                    },
+                ],
+                "maximum_corrupt_fraction": 0.01,
+                "require_both_labels": True,
+                "minimum_generator_families": 3,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "primary.parquet"
+
+    assert run_manifest_cli(argparse.Namespace(config=config, output=output)) == 0
+
+    combined = pd.read_parquet(output)
+    assert len(combined) == 6
+    assert set(combined["dataset_name"]) == {"sid_set", "wildfake"}
+    assert set(combined.loc[combined["label"] == 1, "generator_family"]) >= {
+        "dalle3",
+        "flux",
+        "sdxl",
+    }
+    assert combined["content_checksum"].str.fullmatch(r"[0-9a-f]{64}").all()
+    assert combined["perceptual_hash"].str.fullmatch(r"[0-9a-f]{16}").all()
 
 
 def test_select_command_uses_current_checkpoint_ranking(tmp_path) -> None:

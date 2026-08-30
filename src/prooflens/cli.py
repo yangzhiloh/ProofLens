@@ -171,7 +171,6 @@ def run_manifest_cli(args: argparse.Namespace) -> int:
                 WildFakeAdapter(
                     root=source.root,
                     version="configured",
-                    generator_labeled=source.generator_labeled,
                 )
             )
     result = build_manifest(adapters, args.output, policy.maximum_corrupt_fraction)
