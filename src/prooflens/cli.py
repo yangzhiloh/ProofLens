@@ -709,7 +709,8 @@ def run_app_cli(args: argparse.Namespace) -> int:
             preprocessing_version=expected_version,
         )
     app = create_app(InferenceService.from_calibration(backend, args.calibration))
-    app.launch()
+    css = getattr(app, "prooflens_css", None)
+    app.launch(**({"css": css} if css else {}))
     return 0
 
 
