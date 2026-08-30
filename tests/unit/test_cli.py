@@ -300,11 +300,14 @@ def test_train_command_persists_resolved_config(tmp_path, monkeypatch) -> None:
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(
-        trainer,
-        "run_training",
-        lambda config: SimpleNamespace(best_checkpoint=config.output_dir / "best.pt"),
-    )
+    requested_resume: list[Path | None] = []
+
+    def fake_training(config, *, resume_from=None):
+        requested_resume.append(resume_from)
+        return SimpleNamespace(best_checkpoint=config.output_dir / "best.pt")
+
+    monkeypatch.setattr(trainer, "run_training", fake_training)
+    resume = tmp_path / "epoch-1.pt"
 
     exit_code = run_train_cli(
         argparse.Namespace(
@@ -312,6 +315,7 @@ def test_train_command_persists_resolved_config(tmp_path, monkeypatch) -> None:
             config_from_selection=None,
             seed=None,
             output=None,
+            resume_from=resume,
         )
     )
 
@@ -319,6 +323,7 @@ def test_train_command_persists_resolved_config(tmp_path, monkeypatch) -> None:
     assert exit_code == 0
     assert Path(saved["data"]["manifest"]) == manifest
     assert Path(saved["output_dir"]) == output_dir
+    assert requested_resume == [resume]
 
 
 def test_calibrate_command_writes_current_artifact_schema(tmp_path) -> None:

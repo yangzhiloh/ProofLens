@@ -33,6 +33,10 @@ case "$command_name" in
         uv run --locked --extra dev python -m pytest -q
         uv run --locked --extra dev python scripts/release_check.py --root .
         ;;
+    preflight)
+        setup
+        uv run --locked --extra dev python scripts/task8_preflight.py
+        ;;
     artifacts)
         publish_artifacts
         ;;
@@ -50,6 +54,7 @@ case "$command_name" in
             "ProofLens one-click workflow" \
             "  bash scripts/prooflens.sh setup     # install the locked environment" \
             "  bash scripts/prooflens.sh verify    # lint, test, and run the release gate" \
+            "  bash scripts/prooflens.sh preflight # audit task 8 readiness without downloads" \
             "  bash scripts/prooflens.sh artifacts # generate the fixture demo bundle" \
             "  bash scripts/prooflens.sh demo      # generate if needed, then launch the app"
         ;;

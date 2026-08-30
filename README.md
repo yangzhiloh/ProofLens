@@ -71,6 +71,11 @@ The full policy, licence status, expected directories, and acquisition boundarie
 [`docs/datasets.md`](docs/datasets.md). Raw data stays below `data/raw/`, which Git ignores and
 the release check rejects if tracked.
 
+Before acquisition, run `.\scripts\prooflens.ps1 preflight` on Windows or
+`bash scripts/prooflens.sh preflight` on Linux. The hardware, storage, credentials, licence,
+dataset-layout, pilot, and recovery checklist is in
+[`docs/task8-preflight.md`](docs/task8-preflight.md). This command does not download or train.
+
 Acquire the pinned balanced SID-Set subset:
 
 ```text

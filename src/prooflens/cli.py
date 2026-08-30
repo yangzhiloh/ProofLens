@@ -68,6 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     source.add_argument("--config-from-selection", type=Path)
     train.add_argument("--seed", type=int)
     train.add_argument("--output", type=Path)
+    train.add_argument("--resume-from", type=Path)
     evaluate = subparsers.choices["evaluate"]
     source = evaluate.add_mutually_exclusive_group(required=True)
     source.add_argument("--run", type=Path)
@@ -246,7 +247,7 @@ def run_train_cli(args: argparse.Namespace) -> int:
         yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False),
         encoding="utf-8",
     )
-    result = run_training(config)
+    result = run_training(config, resume_from=getattr(args, "resume_from", None))
     print(result.best_checkpoint)
     return 0
 

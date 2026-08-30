@@ -1,0 +1,32 @@
+sources:
+  - name: sid_set
+    url: https://huggingface.co/datasets/saberzl/SID_Set
+    local_root: data/raw/sid_set
+    role: primary
+    licence_identifier: CC-BY-4.0
+    licence_status: verified-from-source-card
+    attribution_required: true
+    approved_for_acquisition: true
+    notes: Use only binary labels 0 authentic and 1 fully synthetic; exclude label 2 tampered.
+  - name: cifake
+    url: https://www.kaggle.com/datasets/birdy654/cifake-real-and-ai-generated-synthetic-images
+    local_root: data/raw/cifake
+    role: supplemental-stress-only
+    licence_identifier: REQUIRES-HUMAN-CONFIRMATION
+    licence_status: confirm-on-kaggle-before-download
+    attribution_required: true
+    approved_for_acquisition: false
+    notes: Keep outside primary training until provenance, licence, and low-resolution bias are reviewed.
+  - name: wildfake
+    url: https://modelscope.cn/datasets/hy2628982280/WildFake/summary
+    local_root: data/raw/wildfake
+    role: primary-generator-family-source
+    licence_identifier: REQUIRES-HUMAN-CONFIRMATION
+    licence_status: translate-and-confirm-before-download
+    attribution_required: true
+    approved_for_acquisition: false
+    notes: Use the ModelScope translation button and record the translated terms before acquisition.
+
+minimum_free_disk_gib: 100
+minimum_generator_families: 3
+cifake_primary_training: false
