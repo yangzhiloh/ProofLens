@@ -62,7 +62,7 @@ configuration hash. A one-command fixture run exercises manifest creation, group
 training, evaluation, calibration, and reporting without downloads:
 
 ```text
-python scripts/reproduce_small.py --output artifacts/release-smoke --experiment e4
+uv run --locked --extra dev python scripts/reproduce_small.py --output artifacts/release-smoke --experiment e4
 ```
 
 The fixture run proves that the software path executes. It does not estimate primary-model

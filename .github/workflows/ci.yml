@@ -4,41 +4,52 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cpu-release-gate:
-    name: Python 3.11 CPU on ${{ matrix.os }}
+    name: Python ${{ matrix.python-version }} CPU on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
+        python-version: ["3.11", "3.12"]
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: pip
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install project and development dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -c requirements.lock -e ".[dev]"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.0"
+          enable-cache: true
+
+      - name: Install the locked development environment
+        run: uv sync --locked --extra dev --python ${{ matrix.python-version }}
 
       - name: Ruff
-        run: python -m ruff check src tests scripts
+        run: uv run --locked --extra dev python -m ruff check src tests scripts
 
       - name: Full test suite
-        run: python -m pytest -q
+        run: uv run --locked --extra dev python -m pytest -q
 
       - name: Miniature offline workflow
-        run: python scripts/reproduce_small.py --output artifacts/ci-smoke --experiment e4
+        run: uv run --locked --extra dev python scripts/reproduce_small.py --output artifacts/ci-smoke --experiment e4
 
       - name: ONNX parity
-        run: python -m pytest -q tests/integration/test_export_parity.py
+        run: uv run --locked --extra dev python -m pytest -q tests/integration/test_export_parity.py
 
       - name: Tracked release check
-        run: python scripts/release_check.py --root .
+        run: uv run --locked --extra dev python scripts/release_check.py --root .
