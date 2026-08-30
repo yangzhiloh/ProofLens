@@ -48,17 +48,22 @@ consistently on Windows and Linux without requiring shell activation.
 
 ## Fast offline reproduction
 
-This one command creates deterministic fixture images, a manifest and grouped split, trains a
-small randomly initialized DINOv2-shaped model for one epoch, evaluates canonical conditions,
-and writes metrics and a robustness table. It downloads no dataset or pretrained weight.
+The task runner provides the same commands on Windows and Linux. `demo` is the one-click path: it
+installs the locked environment, generates the fixture artifacts if they are absent, and launches
+the local app. It downloads no dataset or pretrained weight.
 
-```text
-uv run --locked --extra dev python scripts/reproduce_small.py --output artifacts/release-smoke --experiment e4
+```powershell
+.\scripts\prooflens.ps1 demo
 ```
 
-Expected output paths are printed as `checkpoint=`, `predictions=`, `metrics=`, and
-`robustness_markdown=`. Values produced by this fixture run must not be reported as primary
-results.
+```bash
+bash scripts/prooflens.sh demo
+```
+
+Both runners accept `setup`, `verify`, `artifacts`, and `demo`. PowerShell also accepts
+`-PythonVersion` and `-Output`; the shell runner accepts those as its second and third positional
+arguments. Generated demo files are placed under `artifacts/demo/`. Values produced by this
+fixture run must not be reported as primary results.
 
 ## Dataset preparation
 

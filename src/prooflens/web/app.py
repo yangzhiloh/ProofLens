@@ -109,7 +109,7 @@ def _prediction_summary(prediction: Prediction, operating_threshold: float) -> d
 def create_app(service: InferenceService):
     import gradio as gr
 
-    with gr.Blocks(title="ProofLens") as app:
+    with gr.Blocks(title="ProofLens", css=_APP_CSS) as app:
         with gr.Column(elem_id="prooflens-shell"):
             gr.Markdown(
                 "# ProofLens\n"
@@ -200,7 +200,6 @@ def create_app(service: InferenceService):
                 summary,
             ],
         )
-    app.prooflens_css = _APP_CSS
     return app
 
 

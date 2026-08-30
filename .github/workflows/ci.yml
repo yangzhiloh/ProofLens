@@ -45,8 +45,22 @@ jobs:
       - name: Full test suite
         run: uv run --locked --extra dev python -m pytest -q
 
-      - name: Miniature offline workflow
-        run: uv run --locked --extra dev python scripts/reproduce_small.py --output artifacts/ci-smoke --experiment e4
+      - name: One-click artifact workflow (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\scripts\prooflens.ps1 artifacts -PythonVersion ${{ matrix.python-version }} -Output artifacts/ci-smoke
+
+      - name: One-click artifact workflow (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash scripts/prooflens.sh artifacts ${{ matrix.python-version }} artifacts/ci-smoke
+
+      - name: Verify published demo bundle
+        run: >-
+          uv run --locked --extra dev python -c
+          "from pathlib import Path; root = Path('artifacts/ci-smoke/export');
+          assert all((root / name).is_file() for name in
+          ('model.onnx', 'calibration.json', 'artifact_manifest.json'))"
 
       - name: ONNX parity
         run: uv run --locked --extra dev python -m pytest -q tests/integration/test_export_parity.py

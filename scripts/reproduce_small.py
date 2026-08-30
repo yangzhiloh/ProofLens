@@ -21,6 +21,7 @@ if str(_REPOSITORY_ROOT / "src") not in sys.path:
 if str(_REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPOSITORY_ROOT))
 
+import onnx  # noqa: F401  # Load native ONNX libraries before Torch on Windows.
 import pandas as pd
 import torch
 from torch import Tensor, nn
