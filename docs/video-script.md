@@ -1,9 +1,8 @@
 # ProofLens demonstration video script
 
 Target duration: 2 to 4 minutes. E0 through E4, selection, calibration, untouched-test reporting,
-the parity-gated ONNX export, and Task 9 laptop and clean-checkout acceptance are complete.
-Record and publish only in Task 10 after separately hosted artifacts and public destinations are
-verified.
+the parity-gated ONNX export, laptop and clean-checkout acceptance, and separately hosted model
+artifacts are complete. The script is ready for a human to record and upload.
 
 ## 0:00 to 0:25, problem and scope
 
@@ -93,5 +92,5 @@ compound edits, and unusual content can still change scores. False positives and
 require human review. Dataset and model terms remain separate from the MIT project code, and
 WildFake redistribution stays blocked until its licence is verified."
 
-End on the repository URL only after a human has verified the public destination. Do not display
-an unverified link in a recorded release.
+End on the verified repository URL: `https://github.com/yangzhiloh/Tiktoky`. After uploading the
+video, add its verified public URL to `docs/devpost-draft.md` before submitting.
