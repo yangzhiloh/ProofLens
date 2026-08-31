@@ -146,7 +146,10 @@ python -m prooflens.cli report --selection artifacts/selection.json --output art
 ```
 
 Selection occurs before temperature scaling. Calibration uses validation predictions only. The
-final report command consumes the selected run's test predictions and frozen calibration.
+final report command consumes the selected run's test predictions and frozen calibration. It
+also writes `error-cases.json` and `error-cases.md` with representative clean false positives,
+clean false negatives, and the largest clean-to-transformed probability changes. These files
+contain sample IDs and scores without redistributing dataset images.
 
 ## ONNX export and local app
 
@@ -157,6 +160,17 @@ failed parity check does not publish the staged model.
 python -m prooflens.cli export --selection artifacts/selection.json --format onnx --verify 32 --output artifacts/export/prooflens.onnx
 python -m prooflens.cli app --backend onnx --model artifacts/export/prooflens.onnx --calibration artifacts/calibration.json
 ```
+
+For evaluator-friendly batch inference, provide an image directory and a JSON destination:
+
+```text
+python -m prooflens.cli predict --input evaluation-images --model artifacts/export/prooflens.onnx --calibration artifacts/calibration.json --output predictions.json
+```
+
+The command searches supported image formats recursively in deterministic order. Each JSON
+record contains only `image_path`, relative to the supplied directory, and `pred`, the calibrated
+probability that the image is AI-generated. An unreadable image stops the command without
+replacing an existing output file.
 
 For an optional OpenVINO smoke attempt, install the extra and repeat export with
 `--format openvino`. CPU ONNX remains the required fallback.

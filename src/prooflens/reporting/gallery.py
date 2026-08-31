@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,14 +40,19 @@ def select_error_cases(
         if column in enriched.columns
     ]
     unique = enriched.drop_duplicates(identity, keep="first")
+    clean_unique = unique.loc[unique["condition_id"] == "clean"]
     false_positives = (
-        unique.loc[(unique["label"] == 0) & (unique["score"] >= threshold)]
+        clean_unique.loc[
+            (clean_unique["label"] == 0) & (clean_unique["score"] >= threshold)
+        ]
         .sort_values("score", ascending=False, kind="mergesort")
         .head(per_category)
         .reset_index(drop=True)
     )
     false_negatives = (
-        unique.loc[(unique["label"] == 1) & (unique["score"] < threshold)]
+        clean_unique.loc[
+            (clean_unique["label"] == 1) & (clean_unique["score"] < threshold)
+        ]
         .sort_values("score", ascending=True, kind="mergesort")
         .head(per_category)
         .reset_index(drop=True)
@@ -59,6 +65,51 @@ def select_error_cases(
         .reset_index(drop=True)
     )
     return ErrorCases(false_positives, false_negatives, unstable)
+
+
+def write_error_case_artifacts(
+    cases: ErrorCases, output_dir: Path
+) -> tuple[Path, Path]:
+    """Write licensing-safe, sample-level JSON and Markdown error summaries."""
+
+    if not isinstance(cases, ErrorCases):
+        raise TypeError("cases must be an ErrorCases instance")
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    categories = {
+        "false_positives": _error_records(cases.false_positives),
+        "false_negatives": _error_records(cases.false_negatives),
+        "unstable": _error_records(cases.unstable),
+    }
+    json_path = output_dir / "error-cases.json"
+    markdown_path = output_dir / "error-cases.md"
+    _atomic_write_text(
+        json_path,
+        json.dumps(categories, indent=2, sort_keys=True, allow_nan=False) + "\n",
+    )
+    lines = ["# Representative error cases", ""]
+    for title, key in (
+        ("False positives", "false_positives"),
+        ("False negatives", "false_negatives"),
+        ("Most unstable", "unstable"),
+    ):
+        records = categories[key]
+        lines.extend([f"## {title}", ""])
+        if not records:
+            lines.extend(["No cases selected.", ""])
+            continue
+        columns = list(records[0])
+        lines.append("| " + " | ".join(columns) + " |")
+        lines.append("| " + " | ".join("---" for _ in columns) + " |")
+        for record in records:
+            lines.append(
+                "| "
+                + " | ".join(_markdown_value(record[column]) for column in columns)
+                + " |"
+            )
+        lines.append("")
+    _atomic_write_text(markdown_path, "\n".join(lines))
+    return json_path, markdown_path
 
 
 def write_error_gallery(cases: ErrorCases, manifest: pd.DataFrame, output_dir: Path) -> Path:
@@ -133,6 +184,44 @@ def _attach_clean_scores(predictions: pd.DataFrame) -> pd.DataFrame:
     enriched = predictions.merge(clean, on=join_keys, how="left", validate="many_to_one")
     enriched["absolute_change"] = (enriched["score"] - enriched["clean_score"]).abs()
     return enriched
+
+
+def _error_records(frame: pd.DataFrame) -> list[dict[str, object]]:
+    preferred = (
+        "sample_id",
+        "label",
+        "score",
+        "condition_id",
+        "generator_family",
+        "clean_score",
+        "absolute_change",
+        "split",
+        "checkpoint_id",
+    )
+    columns = [column for column in preferred if column in frame.columns]
+    records: list[dict[str, object]] = []
+    for row in frame.loc[:, columns].itertuples(index=False, name=None):
+        record: dict[str, object] = {}
+        for column, value in zip(columns, row, strict=True):
+            if pd.isna(value):
+                record[column] = None
+            elif isinstance(value, np.generic):
+                record[column] = value.item()
+            else:
+                record[column] = value
+        records.append(record)
+    return records
+
+
+def _markdown_value(value: object) -> str:
+    if value is None:
+        return "n/a"
+    if isinstance(value, float):
+        text = f"{value:.6f}"
+    else:
+        text = str(value)
+    escaped = text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", " ")
+    return html.escape(escaped, quote=False)
 
 
 def _validate_predictions(

@@ -509,12 +509,20 @@ def test_report_command_applies_frozen_calibration(tmp_path) -> None:
                     "checkpoint_id": "best",
                 }
             )
-    pd.DataFrame(rows).to_parquet(run_dir / "predictions-test.parquet", index=False)
+    predictions = pd.DataFrame(rows)
+    predictions.loc[
+        predictions["sample_id"] == "test-clean-1", "logit"
+    ] = 1.0
+    predictions.loc[
+        predictions["sample_id"] == "generator_test-clean-0", "logit"
+    ] = 20.0
+    predictions["score"] = 1.0 / (1.0 + (-predictions["logit"]).map(math.exp))
+    predictions.to_parquet(run_dir / "predictions-test.parquet", index=False)
     calibration = tmp_path / "calibration.json"
     calibration.write_text(
         json.dumps(
             {
-                "temperature": 1.0,
+                "temperature": 2.0,
                 "threshold": 0.5,
                 "validation_split_hash": "a" * 64,
             }
@@ -537,9 +545,18 @@ def test_report_command_applies_frozen_calibration(tmp_path) -> None:
     exit_code = run_report_cli(argparse.Namespace(selection=selection, output=output))
 
     metrics = json.loads((output / "metrics.json").read_text(encoding="utf-8"))
+    error_cases = json.loads((output / "error-cases.json").read_text(encoding="utf-8"))
     assert exit_code == 0
     assert metrics["operating_point"]["threshold"] == 0.5
-    assert metrics["operating_point"]["accuracy"] == 1.0
+    assert metrics["operating_point"]["accuracy"] == 0.75
+    assert [row["sample_id"] for row in error_cases["false_positives"]] == [
+        "test-clean-1"
+    ]
+    assert error_cases["false_positives"][0]["score"] == pytest.approx(
+        1.0 / (1.0 + math.exp(-0.5))
+    )
+    assert (output / "error-cases.json").is_file()
+    assert (output / "error-cases.md").is_file()
 
 
 def test_verified_onnx_is_not_published_when_parity_fails(tmp_path) -> None:
@@ -730,6 +747,52 @@ def test_evaluate_stress_command_requires_selection_split_and_output() -> None:
     assert parsed.selection == Path("selection.json")
     assert parsed.split == "test"
     assert parsed.output == Path("stress-output")
+
+
+def test_predict_command_requires_directory_model_calibration_and_output() -> None:
+    from prooflens.cli import COMMANDS, build_parser
+
+    parsed = build_parser().parse_args(
+        [
+            "predict",
+            "--input",
+            "images",
+            "--model",
+            "model.onnx",
+            "--calibration",
+            "calibration.json",
+            "--output",
+            "predictions.json",
+        ]
+    )
+
+    assert "predict" in COMMANDS
+    assert parsed.input == Path("images")
+    assert parsed.model == Path("model.onnx")
+    assert parsed.calibration == Path("calibration.json")
+    assert parsed.output == Path("predictions.json")
+
+
+def test_predict_command_executes_directory_prediction(tmp_path, monkeypatch) -> None:
+    from prooflens import cli
+
+    input_dir = tmp_path / "images"
+    input_dir.mkdir()
+    Image.new("RGB", (4, 4), "white").save(input_dir / "sample.png")
+    output = tmp_path / "predictions.json"
+    service = SimpleNamespace(
+        predict=lambda image: SimpleNamespace(probability_ai=0.75)
+    )
+    monkeypatch.setattr(cli, "_build_inference_service", lambda args: service)
+
+    exit_code = cli.run_predict_cli(
+        argparse.Namespace(input=input_dir, output=output)
+    )
+
+    assert exit_code == 0
+    assert json.loads(output.read_text(encoding="utf-8")) == [
+        {"image_path": "sample.png", "pred": 0.75}
+    ]
 
 
 def test_evaluate_stress_uses_selected_checkpoint_and_writes_split_artifacts(

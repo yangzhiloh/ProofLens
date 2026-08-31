@@ -214,6 +214,62 @@ def test_gallery_selects_highest_confidence_errors_and_unique_instability_rows()
     assert not selected.unstable.duplicated(["sample_id", "condition_id"]).any()
 
 
+def test_error_selection_uses_only_clean_rows_for_false_predictions() -> None:
+    from prooflens.reporting.gallery import select_error_cases
+
+    predictions = _prediction_frame()
+    transformed_false_positive = predictions.iloc[[2]].copy()
+    transformed_false_positive["score"] = 1.0
+    transformed_false_positive["condition_id"] = "jpeg_q30"
+    selected = select_error_cases(
+        pd.concat([predictions, transformed_false_positive], ignore_index=True),
+        per_category=3,
+    )
+
+    assert selected.false_positives["condition_id"].eq("clean").all()
+    assert selected.false_negatives["condition_id"].eq("clean").all()
+
+
+def test_error_case_artifacts_write_sample_level_json_and_markdown(tmp_path) -> None:
+    from prooflens.reporting.gallery import (
+        select_error_cases,
+        write_error_case_artifacts,
+    )
+
+    cases = select_error_cases(_prediction_frame(), per_category=2)
+
+    json_path, markdown_path = write_error_case_artifacts(cases, tmp_path)
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert set(payload) == {"false_positives", "false_negatives", "unstable"}
+    assert payload["false_positives"][0]["sample_id"] == "real-high-1"
+    assert payload["false_negatives"][0]["sample_id"] == "fake-low-1"
+    assert payload["unstable"][0]["absolute_change"] == pytest.approx(0.95)
+    assert "## False positives" in markdown
+    assert "real-high-1" in markdown
+    assert "## Most unstable" in markdown
+
+
+def test_error_case_markdown_escapes_dataset_controlled_html(tmp_path) -> None:
+    from prooflens.reporting.gallery import (
+        select_error_cases,
+        write_error_case_artifacts,
+    )
+
+    predictions = _prediction_frame().copy()
+    predictions.loc[
+        predictions["sample_id"] == "real-high-1", "sample_id"
+    ] = "<script>alert(1)</script>"
+    cases = select_error_cases(predictions, per_category=1)
+
+    _, markdown_path = write_error_case_artifacts(cases, tmp_path)
+    markdown = markdown_path.read_text(encoding="utf-8")
+
+    assert "<script>alert(1)</script>" not in markdown
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in markdown
+
+
 def test_error_gallery_writes_thumbnails_and_escapes_captions(tmp_path) -> None:
     from prooflens.reporting.gallery import select_error_cases, write_error_gallery
 

@@ -33,6 +33,7 @@ COMMANDS = (
     "calibrate",
     "report",
     "export",
+    "predict",
     "app",
 )
 
@@ -95,6 +96,20 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--format", choices=("onnx", "openvino"), default="onnx")
     export.add_argument("--verify", type=int, default=32)
     export.add_argument("--output", type=Path, required=True)
+    predict = subparsers.choices["predict"]
+    predict.add_argument("--backend", choices=("torch", "onnx"), default="onnx")
+    predict.add_argument("--checkpoint", type=Path)
+    predict.add_argument("--model", type=Path)
+    predict.add_argument("--calibration", type=Path, required=True)
+    predict.add_argument("--input", type=Path, required=True)
+    predict.add_argument("--output", type=Path, required=True)
+    predict.add_argument(
+        "--preprocessing",
+        choices=("auto", "dinov2", "fixture"),
+        default="auto",
+        help="Auto-detect from artifact_manifest.json; explicit modes support legacy bundles.",
+    )
+    predict.add_argument("--artifact-manifest", type=Path)
     app = subparsers.choices["app"]
     app.add_argument("--backend", choices=("torch", "onnx"), default="onnx")
     app.add_argument("--checkpoint", type=Path)
@@ -123,6 +138,7 @@ def dispatch(args: argparse.Namespace) -> int:
         "calibrate": run_calibrate_cli,
         "report": run_report_cli,
         "export": run_export_cli,
+        "predict": run_predict_cli,
         "app": run_app_cli,
     }
     try:
@@ -507,6 +523,7 @@ def run_report_cli(args: argparse.Namespace) -> int:
     from prooflens.evaluation.calibration import compute_threshold_metrics
     from prooflens.evaluation.metrics import compute_metrics
     from prooflens.reporting.plots import write_auc_plot
+    from prooflens.reporting.gallery import select_error_cases, write_error_case_artifacts
     from prooflens.reporting.tables import write_metric_artifacts
 
     selection = json.loads(args.selection.read_text(encoding="utf-8"))
@@ -530,6 +547,13 @@ def run_report_cli(args: argparse.Namespace) -> int:
     )
     write_metric_artifacts(report, operating, args.output)
     write_auc_plot(report, args.output / "auc.png")
+    calibrated_frame = frame.copy()
+    calibrated_frame["score"] = torch.sigmoid(
+        torch.tensor(frame["logit"].to_numpy(), dtype=torch.float64) / temperature
+    ).numpy()
+    error_frame = calibrated_frame.loc[calibrated_frame["split"] == "test"]
+    cases = select_error_cases(error_frame, threshold=threshold)
+    write_error_case_artifacts(cases, args.output)
     print(args.output)
     return 0
 
@@ -702,9 +726,8 @@ def _publish_verified_onnx(
                 temporary.unlink()
 
 
-def run_app_cli(args: argparse.Namespace) -> int:
+def _build_inference_service(args: argparse.Namespace):
     from prooflens.inference.service import InferenceService
-    from prooflens.web.app import create_app
 
     if args.backend == "torch":
         if getattr(args, "preprocessing", "dinov2") == "fixture":
@@ -780,7 +803,25 @@ def run_app_cli(args: argparse.Namespace) -> int:
             model_version=model_version,
             preprocessing_version=expected_version,
         )
-    app = create_app(InferenceService.from_calibration(backend, args.calibration))
+    return InferenceService.from_calibration(backend, args.calibration)
+
+
+def run_predict_cli(args: argparse.Namespace) -> int:
+    from prooflens.inference.directory import write_directory_predictions
+
+    output = write_directory_predictions(
+        args.input,
+        args.output,
+        _build_inference_service(args),
+    )
+    print(output)
+    return 0
+
+
+def run_app_cli(args: argparse.Namespace) -> int:
+    from prooflens.web.app import create_app
+
+    app = create_app(_build_inference_service(args))
     app.launch(
         server_name="127.0.0.1",
         share=False,
@@ -819,6 +860,7 @@ COMMAND_HANDLERS.update(
         "calibrate": run_calibrate_cli,
         "report": run_report_cli,
         "export": run_export_cli,
+        "predict": run_predict_cli,
         "app": run_app_cli,
     }
 )
