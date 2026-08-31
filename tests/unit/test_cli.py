@@ -591,7 +591,7 @@ def test_app_command_uses_checkpoint_factory_and_launches(tmp_path, monkeypatch)
     class FakeApp:
         launched = False
 
-        def launch(self) -> None:
+        def launch(self, **kwargs) -> None:
             self.launched = True
 
     fake_app = FakeApp()
@@ -654,7 +654,7 @@ def test_app_auto_detects_fixture_preprocessing_from_hashed_manifest(
     class FakeApp:
         launched = False
 
-        def launch(self) -> None:
+        def launch(self, **kwargs) -> None:
             self.launched = True
 
     fake_app = FakeApp()

@@ -2,11 +2,11 @@
 
 ## Publication status
 
-This is a fact-only pre-publication draft. Primary measured results and distributable weights
-remain unavailable until Task 7 of the remaining-work plan completes. Calibration, final test
-reporting, and parity-gated ONNX are Task 8 outputs. Laptop and clean-checkout acceptance belongs
-to Task 9, and the public demonstration recording and publication belong to Task 10. Do not add
-performance claims from the miniature fixture workflow.
+This is a fact-only pre-publication draft. E0 through E4, validation selection, calibration,
+untouched-test reporting, parity-gated ONNX export, and Task 9 CPU and clean-checkout acceptance
+are complete. The public demonstration recording, separately hosted model artifacts, link
+verification, and publication belong to Task 10. Fixture workflow values are not project
+performance claims.
 
 ## Project summary
 
@@ -68,15 +68,17 @@ uv run --locked --extra dev python scripts/reproduce_small.py --output artifacts
 The fixture run proves that the software path executes. It does not estimate primary-model
 accuracy or robustness.
 
-## Results boundary
+## Results
 
-No primary clean AUC, robust AUC, worst-condition AUC, unseen-generator AUC, threshold metric,
-model size, or inference-time value is asserted in this draft. Task 6 produces E0. Task 7 runs E1
-through E4, compares them with E0, and selects the validation winner, making primary measured
-results and distributable weights available. Task 8 produces calibration, untouched final test
-reporting, error analysis, and a parity-gated ONNX export. Task 9 produces laptop and
-clean-checkout acceptance evidence. Only values directly present in those artifacts may be added
-to the final entry, and Task 10 performs recording and publication.
+E2 won validation selection with a 0.9832 composite AUC. After validation-only calibration, the
+untouched test set produced 0.9788 clean ROC AUC, 0.9783 family-macro robust ROC AUC, 0.9728
+worst-condition ROC AUC, and 0.9657 unseen-generator ROC AUC. At the selected threshold,
+accuracy was 0.9100, precision 0.9020, recall 0.9200, and F1 0.9109, with five false positives
+and four false negatives. A 32-sample ONNX comparison passed the `1e-4` parity tolerance.
+
+On a Windows CPU, one accepted clean/transformed two-pass app request used 639.5 ms of model
+inference and 2846.35 ms end to end. This is one acceptance observation, not a benchmark
+distribution. Full evidence and limitations are in `docs/reports/` and `docs/model-card.md`.
 
 ## Limitations and responsible use
 
@@ -92,8 +94,6 @@ are excluded from Git and require separate publication review.
 
 ## Final publication gate
 
-Publish this entry only in Task 10, after Task 7 supplies measured primary results and weights,
-Task 8 supplies calibrated final test and ONNX parity evidence, and Task 9 supplies laptop and
-clean-checkout acceptance. The release check must pass on the final tracked tree, public artefact
-links must be manually verified, and a human must review the text and record the demonstration
-video.
+Publish this entry only in Task 10. The release check must pass on the final tracked tree, public
+artifact links must be manually verified, separately hosted weights must be reviewed, and a
+human must review the text and record the demonstration video.

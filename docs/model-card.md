@@ -7,10 +7,11 @@ normalized feature vector during training, calibrated authentic and AI-generated
 and inference provenance. The committed backbone is `facebook/dinov2-base` with 224 by 224 RGB
 input. A layer-normalization and linear binary head follows the class-token representation.
 
-Primary measured results and distributable weights are unavailable until Task 7 of the
-remaining-work plan completes. No checkpoint or ONNX binary is tracked in this repository. Any
-fixture metrics produced by `scripts/reproduce_small.py` validate software flow only and are not
-primary-dataset results.
+E2 is the selected production candidate. Its calibrated untouched-test results and ONNX parity
+evidence are documented in `docs/reports/final-robustness.md`. No checkpoint or ONNX binary is
+tracked in this repository; the parity-verified export remains a local generated artifact until
+separately reviewed release storage is provided. Fixture metrics from
+`scripts/reproduce_small.py` validate software flow only and are not primary-dataset results.
 
 ## Intended use
 
@@ -24,7 +25,7 @@ moderation decisions, or evaluate video, audio, or pixel-level provenance.
 
 ## Architecture and training
 
-The planned experiment sequence is:
+The executed experiment sequence was:
 
 1. E0 trains layer normalization and the linear head with the backbone frozen.
 2. E1 also fine-tunes the final two DINOv2 transformer blocks.
@@ -64,16 +65,18 @@ ROC AUC. Threshold reporting includes accuracy, precision, recall, F1, false pos
 negatives after validation-only temperature scaling and threshold selection. Model size,
 inference time, error examples, and ONNX parity are also required.
 
-No primary metric value is claimed here. Task 6 runs E0. Task 7 runs E1 through E4 on the same
-frozen manifest and split, compares them with E0, and selects the validation winner. Primary
-measured results and distributable weights remain unavailable until Task 7 completes. Task 8 then
-fits calibration, evaluates the untouched final test partitions, produces the final report, and
-publishes ONNX only after parity passes. Task 9 supplies laptop and clean-checkout acceptance
-evidence. Task 10 records and publishes the submission.
+E2 won validation selection with 0.9844 clean AUC, 0.9821 macro robust AUC, and a 0.9832
+composite. After validation-only calibration, untouched-test clean AUC was 0.9788, macro robust
+AUC was 0.9783, worst-condition AUC was 0.9728, and unseen-generator AUC was 0.9657. Accuracy at
+the selected threshold was 0.9100 with 5 false positives and 4 false negatives. The 32-sample
+ONNX parity gate passed at a `1e-4` tolerance. See `docs/reports/experiment-summary.md`,
+`docs/reports/final-robustness.md`, and `docs/reports/acceptance-report.md`. Task 10 records and
+publishes the submission and provides separately hosted artifacts.
 
 ## Limitations
 
-- No primary dataset experiment has yet produced a publishable measured result or weight.
+- The measured result covers the pinned paired subset and its frozen split; it does not establish
+  performance on all authentic-image domains or generators.
 - Performance can shift across cameras, content domains, generators, and post-processing tools.
 - Compression, resizing, screenshots, unusual content, and compound transformations can alter a
   score.

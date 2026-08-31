@@ -1,11 +1,9 @@
 # ProofLens demonstration video script
 
-Target duration: 2 to 4 minutes. Primary measured results and distributable weights remain
-unavailable until Task 7 selects from E1 through E4 after Task 6 produces E0. Task 8 supplies
-calibration, untouched final test reporting, and the parity-gated ONNX export. Task 9 supplies
-laptop and clean-checkout acceptance. Record and publish only in Task 10 after all of that
-evidence exists. Until then, this is a fact-only recording script and contains no claimed metric
-values.
+Target duration: 2 to 4 minutes. E0 through E4, selection, calibration, untouched-test reporting,
+the parity-gated ONNX export, and Task 9 laptop and clean-checkout acceptance are complete.
+Record and publish only in Task 10 after separately hosted artifacts and public destinations are
+verified.
 
 ## 0:00 to 0:25, problem and scope
 
@@ -48,13 +46,13 @@ the one that most reduces the correct margin while preserving family exploration
 On screen: the final Task 8 untouched-test report, Task 7 selected-run provenance, and condition
 table. Do not show fixture metrics as project results.
 
-Narration instructions:
+Narration:
 
-State only values visible in the final Task 8 generated report. Cover clean ROC AUC, family-macro
-robust ROC AUC, worst condition, unseen-generator ROC AUC, and validation-selected threshold
-metrics. Identify the Task 7 winner selected from E1 through E4 after comparison with the Task 6
-E0 baseline. If a required value is absent, state that it was not measured instead of estimating
-it.
+"E2 was selected on validation data with a composite AUC of 0.9832. On the untouched test set,
+clean ROC AUC was 0.9788 and family-macro robust ROC AUC was 0.9783. The worst tested condition
+had 0.9728 AUC, while unseen-generator AUC was 0.9657. At the validation-selected threshold,
+accuracy was 91 percent, with five false positives and four false negatives. These measurements
+describe this frozen dataset and split, not every image domain or generator."
 
 ## 1:55 to 2:35, local app
 
