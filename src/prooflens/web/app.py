@@ -12,6 +12,24 @@ from prooflens.errors import ProofLensError, UserInputError
 from prooflens.inference.service import InferenceService, Prediction
 
 
+_TRANSFORMATION_LABELS = {
+    "jpeg_q90": "JPEG compression — Light (quality 90)",
+    "jpeg_q70": "JPEG compression — Medium (quality 70)",
+    "jpeg_q50": "JPEG compression — Strong (quality 50)",
+    "jpeg_q30": "JPEG compression — Heavy (quality 30)",
+    "blur_s0.5": "Blur — Very light (strength 0.5)",
+    "blur_s1.0": "Blur — Medium (strength 1.0)",
+    "blur_s2.0": "Blur — Strong (strength 2.0)",
+    "resize_x0.5": "Resize — Half resolution (50%)",
+    "resize_x0.25": "Resize — Quarter resolution (25%)",
+    "noise_s0.02": "Noise — Light (2%)",
+    "noise_s0.05": "Noise — Medium (5%)",
+    "noise_s0.10": "Noise — Strong (10%)",
+    "color_jitter_20": "Color adjustment — Moderate (20%)",
+    "center_crop_80": "Center crop — Keep middle 80%",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class UploadAnalysis:
     clean_image: Image.Image
@@ -133,7 +151,10 @@ def create_app(service: InferenceService):
                         "whether the result survives ordinary image processing."
                     )
                     condition = gr.Dropdown(
-                        choices=[spec.condition_id for spec in canonical_specs()],
+                        choices=[
+                            (_transformation_label(spec.condition_id), spec.condition_id)
+                            for spec in canonical_specs()
+                        ],
                         value="jpeg_q30",
                         label="Transformation",
                     )
@@ -226,7 +247,7 @@ def _verdict_card(summary: dict[str, object]) -> str:
 def _stability_card(summary: dict[str, object]) -> str:
     _, _, decision = _summary_parts(summary)
     absolute_change = float(summary["absolute_change"])
-    condition = html.escape(str(summary["condition"]).replace("_", " "))
+    condition = html.escape(_transformation_label(str(summary["condition"])))
     rating = html.escape(str(decision["stability_rating"]))
     changed = bool(decision["verdict_changed"])
     tone = "warning" if changed or absolute_change > 0.10 else "stable"
@@ -269,6 +290,12 @@ def _confidence_label(confidence: float) -> str:
     if confidence >= 0.65:
         return "Moderate confidence"
     return "Low confidence"
+
+
+def _transformation_label(condition_id: str) -> str:
+    """Return a readable UI label while preserving canonical IDs internally."""
+
+    return _TRANSFORMATION_LABELS.get(condition_id, condition_id.replace("_", " "))
 
 
 def _stability_rating(absolute_change: float) -> str:
