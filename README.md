@@ -7,11 +7,14 @@ generator families out of training for unseen-generator evaluation.
 
 ## Release status
 
-The implementation, tests, configuration files, miniature offline workflow, ONNX parity gate,
-and local Gradio interface are present. Primary-dataset E0 through E4 experiments have not yet
-been executed in this release branch. Primary measured results and distributable model weights
-are unavailable until Task 7 of the remaining-work plan completes. The miniature fixture
-workflow is a software reproducibility check, not evidence of primary-model performance.
+The implementation, E0 through E4 experiments, validation-only selection and calibration,
+untouched-test evaluation, parity-gated ONNX export, and Windows CPU acceptance are complete.
+E2 was selected with a validation composite AUC of 0.9832. On the untouched test set it achieved
+0.9788 clean ROC AUC and 0.9783 macro robust ROC AUC; see the
+[`final robustness report`](docs/reports/final-robustness.md). Model weights and generated
+artifacts are intentionally excluded from Git and still require separately reviewed release
+storage. The miniature fixture workflow remains a software reproducibility check, not evidence
+of primary-model performance.
 
 ## Requirements
 
@@ -165,6 +168,10 @@ uv run --locked --all-extras python -m prooflens.cli export --selection artifact
 The app displays calibrated authentic and AI-generated probabilities, a threshold-relative
 label, one selected transformation, and the absolute probability change. It is a demonstration,
 not forensic proof.
+
+The Windows CPU acceptance and clean-checkout evidence are recorded in the
+[`Task 9 acceptance report`](docs/reports/acceptance-report.md). A visual browser automation
+limitation did not affect the live Gradio API acceptance.
 
 ## Artifact layout
 
