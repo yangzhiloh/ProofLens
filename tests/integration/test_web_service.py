@@ -69,6 +69,22 @@ def test_analyze_upload_uses_calibrated_operating_threshold_for_verdict() -> Non
     assert "Authentic signal" in result.as_outputs()[4]
 
 
+def test_transformation_labels_are_readable_and_cover_every_canonical_condition() -> None:
+    from prooflens.data.transforms import canonical_specs
+    from prooflens.web.app import _transformation_label
+
+    labels = {
+        spec.condition_id: _transformation_label(spec.condition_id)
+        for spec in canonical_specs()
+    }
+
+    assert labels["jpeg_q30"] == "JPEG compression — Heavy (quality 30)"
+    assert labels["blur_s2.0"] == "Blur — Strong (strength 2.0)"
+    assert labels["resize_x0.25"] == "Resize — Quarter resolution (25%)"
+    assert labels["center_crop_80"] == "Center crop — Keep middle 80%"
+    assert all(condition_id not in label for condition_id, label in labels.items())
+
+
 def test_analyze_upload_rejects_missing_image() -> None:
     from prooflens.errors import UserInputError
     from prooflens.web.app import analyze_upload
