@@ -9,16 +9,27 @@ generator coverage have been audited.
 
 | Source | Role | Local root | Labels | Version or revision | Licence status |
 | --- | --- | --- | --- | --- | --- |
-| SID-Set | Primary candidate | `data/raw/sid_set` | `0` authentic, `1` AI-generated | Pinned revision `c1674903d858c78e04809c1c6f2703627ac1a621` | CC-BY-4.0; source-material attribution required |
-| WildFake | Primary candidate and generator-family source | `data/raw/wildfake` | `0` authentic, `1` AI-generated | Local export recorded as configured | REQUIRES-VERIFICATION before redistribution |
+| SID-Set | Optional larger supplement | `data/raw/sid_set` | `0` authentic, `1` AI-generated | Pinned revision `c1674903d858c78e04809c1c6f2703627ac1a621` | CC-BY-4.0; source-material attribution required |
+| AIGenImages2026 | Primary generator-family source | `data/raw/aigenimages2026/val` | paired authentic and AI-generated | Pinned revision `073e1924d9d0d85ac97a53b07947b6ac95ce241c` | CC-BY-4.0 |
+| WildFake | Optional, inactive candidate | `data/raw/wildfake` | `0` authentic, `1` AI-generated | Local export recorded as configured | REQUIRES-VERIFICATION before redistribution |
 | CIFAKE | Low-resolution stress test only | `data/raw/cifake` | `REAL` becomes `0`, `FAKE` becomes `1` | Local export recorded as configured | MIT; retain required citations |
 
 Primary policy requires both labels and at least three generator families from approved
-generator-labelled sources. CIFAKE cannot enter primary training under the current policy.
+generator-labelled sources. AIGenImages2026 supplies 19. CIFAKE cannot enter primary training
+under the current policy.
+
+## AIGenImages2026 paired subset
+
+The smaller-run policy uses only the official `val/` subset: 559 real images paired with 559 generated
+images across 19 named generator directories. The source revision is pinned and its dataset card
+declares CC BY 4.0. Each row in `eval_real_pairs.csv` becomes one split group, keeping a real image
+and its generated counterpart in the same partition. The larger extracted training directory is
+not used by ProofLens.
 
 ## SID-Set automated acquisition
 
-`configs/data/sid_subset.yaml` identifies `saberzl/SID_Set`, streams its `train` split at the
+`configs/data/sid_subset.yaml` identifies `saberzl/SID_Set`, streams its only published
+`validation` split at the
 pinned revision, and selects 10,000 rows per binary class. Label values outside `0` and `1` are
 excluded. The operation fails without publishing a partial destination if either class is
 underfilled.
@@ -73,7 +84,7 @@ generator family and keeps the dataset separate from primary training.
 ```text
 python -m prooflens.cli manifest --config configs/data/primary.yaml --output artifacts/manifests/primary.parquet
 python -m prooflens.cli audit --manifest artifacts/manifests/primary.parquet --output artifacts/reports/data-audit
-python -m prooflens.cli split --manifest artifacts/manifests/primary.parquet --output artifacts/manifests/primary-split.parquet --seed 17
+python -m prooflens.cli split --manifest artifacts/manifests/primary.parquet --output artifacts/manifests/primary-split.parquet --seed 17 --minimum-holdout-family-rows 20
 ```
 
 Each canonical row records sample and source-group identifiers, path, binary label, dataset and
@@ -85,6 +96,11 @@ The audit reports class, dataset, generator, resolution, format, metadata, dupli
 label-predictive categorical distributions. Splitting keeps source groups and duplicate clusters
 together, preserves both labels, and reserves generator-family partitions. Exact checksum or
 source-group leakage across assigned partitions is a hard failure.
+
+The smaller AIGenImages2026 run records a 20-row minimum for generator holdouts because its
+families contain 17 to 31 images. The standard production default remains 100. This run supports
+unseen-generator evaluation with wider uncertainty and must not be reported as equivalent to the
+larger production protocol.
 
 ## Publication boundary
 

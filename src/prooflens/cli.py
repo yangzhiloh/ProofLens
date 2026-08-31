@@ -62,12 +62,14 @@ def build_parser() -> argparse.ArgumentParser:
     split.add_argument("--manifest", type=Path, required=True)
     split.add_argument("--output", type=Path, required=True)
     split.add_argument("--seed", type=int, default=17)
+    split.add_argument("--minimum-holdout-family-rows", type=int, default=100)
     train = subparsers.choices["train"]
     source = train.add_mutually_exclusive_group(required=True)
     source.add_argument("--config", type=Path)
     source.add_argument("--config-from-selection", type=Path)
     train.add_argument("--seed", type=int)
     train.add_argument("--output", type=Path)
+    train.add_argument("--resume-from", type=Path)
     evaluate = subparsers.choices["evaluate"]
     source = evaluate.add_mutually_exclusive_group(required=True)
     source.add_argument("--run", type=Path)
@@ -174,6 +176,7 @@ def run_acquire_cli(args: argparse.Namespace) -> int:
 
 def run_manifest_cli(args: argparse.Namespace) -> int:
     from prooflens.data.acquire import load_primary_policy, validate_primary_manifest
+    from prooflens.data.adapters.aigenimages2026 import AIGenImages2026Adapter
     from prooflens.data.adapters.local_manifest import CanonicalParquetAdapter
     from prooflens.data.adapters.wildfake import WildFakeAdapter
     from prooflens.data.manifest import build_manifest
@@ -183,6 +186,13 @@ def run_manifest_cli(args: argparse.Namespace) -> int:
     for source in policy.sources:
         if source.name == "sid_set":
             adapters.append(CanonicalParquetAdapter(source.root / "manifest.parquet", "sid_set"))
+        elif source.name == "aigenimages2026":
+            adapters.append(
+                AIGenImages2026Adapter(
+                    root=source.root,
+                    version="073e1924d9d0d85ac97a53b07947b6ac95ce241c",
+                )
+            )
         elif source.name == "wildfake":
             adapters.append(
                 WildFakeAdapter(
@@ -212,7 +222,14 @@ def run_split_cli(args: argparse.Namespace) -> int:
 
     from prooflens.data.splitting import SplitPolicy, write_split_manifest
 
-    policy = SplitPolicy(args.seed, 0.10, 0.10, frozenset(), frozenset())
+    policy = SplitPolicy(
+        args.seed,
+        0.10,
+        0.10,
+        frozenset(),
+        frozenset(),
+        minimum_holdout_family_rows=args.minimum_holdout_family_rows,
+    )
     result = write_split_manifest(
         pd.read_parquet(args.manifest), args.output, policy, args.manifest
     )
@@ -246,7 +263,7 @@ def run_train_cli(args: argparse.Namespace) -> int:
         yaml.safe_dump(config.model_dump(mode="json"), sort_keys=False),
         encoding="utf-8",
     )
-    result = run_training(config)
+    result = run_training(config, resume_from=getattr(args, "resume_from", None))
     print(result.best_checkpoint)
     return 0
 
@@ -668,6 +685,7 @@ def _publish_verified_onnx(
             sample,
             temperature=temperature,
             report_path=staged_report,
+            release_model_before_onnx=True,
         )
         report_payload = json.loads(staged_report.read_text(encoding="utf-8"))
         report_payload["onnx_path"] = str(destination)

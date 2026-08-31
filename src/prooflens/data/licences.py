@@ -29,6 +29,14 @@ CIFAKE = DatasetAttribution(
     licence_identifier="MIT",
     attribution="CIFAKE: retain required dataset citations.",
 )
+AIGENIMAGES2026 = DatasetAttribution(
+    dataset_name="aigenimages2026",
+    licence_identifier="CC-BY-4.0",
+    attribution=(
+        "AIGenImages2026: cite the WildFC dataset release and retain CC BY 4.0 "
+        "attribution."
+    ),
+)
 
 
 def wildfake_manual_acquisition_message(root: Path) -> str:

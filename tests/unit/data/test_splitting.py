@@ -472,6 +472,29 @@ def test_assign_grouped_splits_creates_exactly_five_leakage_safe_partitions() ->
     assert generator_validation_real_groups.isdisjoint(generator_test_real_groups)
 
 
+def test_paired_holdout_groups_supply_their_own_real_controls() -> None:
+    rows: list[dict[str, object]] = []
+    for family in ("alpha", "beta", "gamma"):
+        for index in range(30):
+            group = f"pair:{family}:{index}"
+            rows.append(_row(f"real:{family}:{index}", source_group=group))
+            rows.append(
+                _row(
+                    f"fake:{family}:{index}",
+                    label=1,
+                    family=family,
+                    source_group=group,
+                )
+            )
+    policy = replace(_automatic_policy(), minimum_holdout_family_rows=20)
+
+    split = assign_grouped_splits(pd.DataFrame(rows), policy)
+
+    assert set(split["split"]) == set(PARTITIONS)
+    assert all(set(partition.label) == {0, 1} for _, partition in split.groupby("split"))
+    assert split.groupby("source_group_id")["split"].nunique().max() == 1
+
+
 def test_assign_grouped_splits_rejects_a_component_linking_both_holdouts() -> None:
     frame = _assignable_frame()
     shared = frame.loc[frame.sample_id == "alpha:000", "content_checksum"].iloc[0]

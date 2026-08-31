@@ -1,5 +1,5 @@
 dataset_id: saberzl/SID_Set
-split: train
+split: validation
 streaming: true
 revision: c1674903d858c78e04809c1c6f2703627ac1a621
 per_class: 10000

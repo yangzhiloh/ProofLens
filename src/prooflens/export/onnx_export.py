@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import gc
 import json
 import math
+import subprocess
+import sys
 import warnings
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
@@ -10,7 +13,6 @@ from typing import Any
 from uuid import uuid4
 
 import numpy as np
-import onnx
 import torch
 from torch import Tensor, nn
 
@@ -80,8 +82,7 @@ def export_onnx(model: nn.Module, sample_pixels: Tensor, onnx_path: Path) -> Pat
                 opset_version=18,
                 external_data=False,
             )
-        onnx_model = onnx.load(temporary_path, load_external_data=False)
-        onnx.checker.check_model(onnx_model)
+        _check_onnx_file(temporary_path)
         temporary_path.replace(destination)
     except Exception as error:
         raise ExportError(f"ONNX export failed for {destination}") from error
@@ -89,6 +90,26 @@ def export_onnx(model: nn.Module, sample_pixels: Tensor, onnx_path: Path) -> Pat
         if temporary_path.exists():
             temporary_path.unlink()
     return destination
+
+
+def _check_onnx_file(path: Path) -> None:
+    """Run the native ONNX checker outside the PyTorch process on Windows.
+
+    Loading PyTorch and ONNX's native checker into one Windows process can cause
+    a DLL-level access violation for production-sized graphs. A clean child
+    process preserves full ONNX validation without weakening the publication gate.
+    """
+
+    command = [
+        sys.executable,
+        "-c",
+        "import onnx,sys; onnx.checker.check_model(sys.argv[1])",
+        str(path),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "native checker failed"
+        raise ExportError(f"ONNX checker rejected {path}: {detail}")
 
 
 def verify_onnx_parity(
@@ -99,6 +120,7 @@ def verify_onnx_parity(
     temperature: float = 1.0,
     tolerance: float = 1e-4,
     report_path: Path | None = None,
+    release_model_before_onnx: bool = False,
 ) -> ExportParityReport:
     """Require 32-image logit and calibrated-probability parity before publication."""
 
@@ -110,13 +132,30 @@ def verify_onnx_parity(
     numeric_temperature = _positive_finite(temperature, "temperature")
     numeric_tolerance = _positive_finite(tolerance, "tolerance")
     wrapper = LogitOnlyWrapper(model).eval()
+    chunk_size = 4
     with torch.inference_mode():
-        expected_tensor = wrapper(pixels)
-    expected = expected_tensor.detach().to(device="cpu", dtype=torch.float32).numpy().reshape(-1)
+        expected = np.concatenate(
+            [
+                wrapper(chunk)
+                .detach()
+                .to(device="cpu", dtype=torch.float32)
+                .numpy()
+                .reshape(-1)
+                for chunk in pixels.split(chunk_size)
+            ]
+        )
+    if release_model_before_onnx:
+        model.to(device="meta")
+        del wrapper
+        gc.collect()
     backend = OnnxTensorBackend(Path(onnx_path))
-    actual = backend.predict_batch(
-        pixels.detach().to(device="cpu", dtype=torch.float32).numpy()
-    ).reshape(-1)
+    pixel_values = pixels.detach().to(device="cpu", dtype=torch.float32).numpy()
+    actual = np.concatenate(
+        [
+            backend.predict_batch(pixel_values[start : start + chunk_size]).reshape(-1)
+            for start in range(0, len(pixel_values), chunk_size)
+        ]
+    )
     if actual.shape != expected.shape:
         raise ExportError(
             f"ONNX parity output shape {actual.shape} does not match PyTorch {expected.shape}"

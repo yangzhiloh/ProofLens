@@ -60,7 +60,11 @@ def test_acquire_sid_subset_persists_rgb_images_manifest_and_metadata(tmp_path: 
     def loader(dataset_id: str, **kwargs: object) -> TinyStreamingDataset:
         if dataset_id != "saberzl/SID_Set":
             raise AssertionError("unexpected dataset")
-        if kwargs != {"split": "train", "streaming": True, "revision": "pinned-123"}:
+        if kwargs != {
+            "split": "validation",
+            "streaming": True,
+            "revision": "pinned-123",
+        }:
             raise AssertionError("streaming contract changed")
         return TinyStreamingDataset(rows)
 
@@ -88,7 +92,7 @@ def test_acquire_sid_subset_persists_rgb_images_manifest_and_metadata(tmp_path: 
         "dataset_revision": "pinned-123",
         "licence_identifier": "CC-BY-4.0",
         "observed_dataset_revision": "observed-revision-987",
-        "split": "train",
+        "split": "validation",
     }
 
 
@@ -108,6 +112,28 @@ def test_acquire_sid_subset_rejects_underfilled_stream_without_partial_output(
         )
 
     assert not output_root.exists()
+
+
+def test_acquire_sid_subset_writes_selected_images_incrementally(tmp_path: Path) -> None:
+    output_root = tmp_path / "sid"
+
+    def rows():
+        yield _sid_row("real", 0, "white")
+        staging = tuple(tmp_path.glob(".sid.acquiring-*"))
+        assert len(staging) == 1
+        assert len(tuple(staging[0].glob("images/0/*.png"))) == 1
+        yield _sid_row("fake", 1, "black")
+
+    def loader(dataset_id: str, **kwargs: object) -> Any:
+        return rows()
+
+    acquire_sid_subset(
+        {"revision": "pinned-123", "per_class": 1},
+        output_root,
+        dataset_loader=loader,
+    )
+
+    assert (output_root / "manifest.parquet").is_file()
 
 
 def test_acquire_sid_subset_refuses_to_overwrite_existing_root(tmp_path: Path) -> None:
@@ -210,7 +236,7 @@ def test_primary_policy_has_top_level_three_family_gate_and_excludes_cifake() ->
 
     assert raw["minimum_generator_families"] == 3
     assert all("minimum_generator_families" not in source for source in raw["sources"])
-    assert {source["name"] for source in raw["sources"]} == {"sid_set", "wildfake"}
+    assert {source["name"] for source in raw["sources"]} == {"aigenimages2026"}
     assert load_primary_policy(policy_path).minimum_generator_families == 3
 
 
@@ -230,7 +256,7 @@ def test_primary_policy_rejects_missing_label_and_too_few_fake_families() -> Non
     missing_real = pd.DataFrame(
         {
             "label": [1, 1, 1],
-            "dataset_name": ["wildfake"] * 3,
+            "dataset_name": ["aigenimages2026"] * 3,
             "generator_family": ["flux", "sdxl", "dalle3"],
         }
     )
@@ -240,7 +266,7 @@ def test_primary_policy_rejects_missing_label_and_too_few_fake_families() -> Non
     two_families = pd.DataFrame(
         {
             "label": [0, 1, 1],
-            "dataset_name": ["sid_set", "wildfake", "wildfake"],
+            "dataset_name": ["aigenimages2026"] * 3,
             "generator_family": ["authentic", "flux", "sdxl"],
         }
     )
@@ -257,10 +283,10 @@ def test_primary_policy_rejects_unidentified_dataset_names(
         {
             "label": [0, 1, 1, 1, 0],
             "dataset_name": [
-                "sid_set",
-                "wildfake",
-                "wildfake",
-                "wildfake",
+                "aigenimages2026",
+                "aigenimages2026",
+                "aigenimages2026",
+                "aigenimages2026",
                 unidentified_name,
             ],
             "generator_family": ["authentic", "flux", "sdxl", "dalle3", "authentic"],
@@ -276,7 +302,7 @@ def test_primary_policy_counts_generator_families_across_approved_sources() -> N
     frame = pd.DataFrame(
         {
             "label": [0, 1, 1, 1, 1],
-            "dataset_name": ["sid_set", "sid_set", "wildfake", "wildfake", "wildfake"],
+            "dataset_name": ["aigenimages2026"] * 5,
             "generator_family": ["authentic", "generated", "flux", "sdxl", "dalle3"],
         }
     )

@@ -1,0 +1,32 @@
+sources:
+  - name: sid_set
+    url: https://huggingface.co/datasets/saberzl/SID_Set
+    local_root: data/raw/sid_set
+    role: optional-large-supplement
+    licence_identifier: CC-BY-4.0
+    licence_status: verified-from-source-card
+    attribution_required: true
+    approved_for_acquisition: true
+    notes: Optional for the smaller run; use only labels 0 and 1 and exclude label 2 tampered.
+  - name: cifake
+    url: https://www.kaggle.com/datasets/birdy654/cifake-real-and-ai-generated-synthetic-images
+    local_root: data/raw/cifake
+    role: supplemental-stress-only
+    licence_identifier: REQUIRES-HUMAN-CONFIRMATION
+    licence_status: confirm-on-kaggle-before-download
+    attribution_required: true
+    approved_for_acquisition: false
+    notes: Keep outside primary training until provenance, licence, and low-resolution bias are reviewed.
+  - name: aigenimages2026
+    url: https://huggingface.co/datasets/pthan12/AIGenImages2026
+    local_root: data/raw/aigenimages2026/val
+    role: primary-generator-family-source
+    licence_identifier: CC-BY-4.0
+    licence_status: verified-from-source-card
+    attribution_required: true
+    approved_for_acquisition: true
+    notes: Use the pinned paired validation subset with 559 real and 559 generated images across 19 families.
+
+minimum_free_disk_gib: 100
+minimum_generator_families: 3
+cifake_primary_training: false

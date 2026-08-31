@@ -1,6 +1,6 @@
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("setup", "verify", "artifacts", "demo", "help")]
+    [ValidateSet("setup", "verify", "preflight", "artifacts", "demo", "help")]
     [string]$Command = "help",
 
     [string]$PythonVersion = "3.11",
@@ -43,6 +43,10 @@ switch ($Command) {
         Invoke-Uv run --locked --extra dev python -m pytest -q
         Invoke-Uv run --locked --extra dev python scripts/release_check.py --root .
     }
+    "preflight" {
+        Install-LockedEnvironment
+        Invoke-Uv run --locked --extra dev python scripts/task8_preflight.py
+    }
     "artifacts" {
         Publish-DemoArtifacts
     }
@@ -60,6 +64,7 @@ switch ($Command) {
         Write-Host "ProofLens one-click workflow"
         Write-Host "  .\scripts\prooflens.ps1 setup     # install the locked environment"
         Write-Host "  .\scripts\prooflens.ps1 verify    # lint, test, and run the release gate"
+        Write-Host "  .\scripts\prooflens.ps1 preflight # audit task 8 readiness without downloads"
         Write-Host "  .\scripts\prooflens.ps1 artifacts # generate the fixture demo bundle"
         Write-Host "  .\scripts\prooflens.ps1 demo      # generate if needed, then launch the app"
     }

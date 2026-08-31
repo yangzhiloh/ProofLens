@@ -39,12 +39,12 @@ hashes, and checkpoint state.
 
 ## Datasets
 
-SID-Set and WildFake are primary candidates subject to audits and verified terms. The automated
-SID-Set configuration is pinned to revision
-`c1674903d858c78e04809c1c6f2703627ac1a621`. WildFake remains manual and has licence status
-REQUIRES-VERIFICATION before redistribution. CIFAKE is a separate 32 by 32 low-resolution stress
-test and is excluded from primary training. Details are in `docs/datasets.md` and
-`THIRD_PARTY_NOTICES.md`.
+The smaller run uses the paired AIGenImages2026 validation subset as its primary source, pinned to
+revision `073e1924d9d0d85ac97a53b07947b6ac95ce241c` under CC BY 4.0. SID-Set remains an optional
+larger supplement pinned to `c1674903d858c78e04809c1c6f2703627ac1a621`. WildFake is an inactive
+optional source with licence status REQUIRES-VERIFICATION. CIFAKE is a separate 32 by 32
+low-resolution stress test and is excluded from primary training. Details are in
+`docs/datasets.md` and `THIRD_PARTY_NOTICES.md`.
 
 Labels are `0` for authentic and `1` for AI-generated. Splits operate on source groups and
 duplicate clusters, with complete generator families reserved for unseen-generator evaluation.

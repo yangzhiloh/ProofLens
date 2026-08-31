@@ -11,6 +11,7 @@ def test_platform_runners_share_locked_commands_and_artifact_layout() -> None:
     for runner in (powershell, shell):
         assert "sync --locked --extra dev" in runner
         assert "run --locked --extra dev python -m pytest -q" in runner
+        assert "task8_preflight.py" in runner
         assert "--publish-demo-artifacts" in runner
         assert "export/artifact_manifest.json" in runner
         assert "export/model.onnx" in runner
