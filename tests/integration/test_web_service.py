@@ -69,6 +69,22 @@ def test_analyze_upload_uses_calibrated_operating_threshold_for_verdict() -> Non
     assert "Authentic signal" in result.as_outputs()[4]
 
 
+def test_single_upload_scores_the_image_once_and_reports_processing_signals() -> None:
+    from prooflens.web.app import analyze_single_upload
+
+    result = analyze_single_upload(
+        Image.new("RGB", (128, 96), color=(120, 80, 40)),
+        _service(operating_threshold=0.60),
+    )
+    outputs = result.as_outputs()
+
+    assert len(outputs) == 6
+    assert outputs[1]["AI-generated"] == pytest.approx(0.5621765)
+    assert "Authentic signal" in outputs[2]
+    assert "Low resolution" in outputs[3]
+    assert outputs[5]["processing_assessment"]["detected"] is True
+
+
 def test_transformation_labels_are_readable_and_cover_every_canonical_condition() -> None:
     from prooflens.data.transforms import canonical_specs
     from prooflens.web.app import _transformation_label

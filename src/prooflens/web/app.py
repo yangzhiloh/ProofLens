@@ -7,8 +7,9 @@ from dataclasses import asdict, dataclass
 
 from PIL import Image
 
-from prooflens.data.transforms import apply_transform, canonical_specs, get_spec
+from prooflens.data.transforms import apply_transform, get_spec
 from prooflens.errors import ProofLensError, UserInputError
+from prooflens.inference.processing_signals import ProcessingAssessment, assess_processing
 from prooflens.inference.service import InferenceService, Prediction
 
 
@@ -70,18 +71,56 @@ class UploadAnalysis:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class DirectAnalysis:
+    image: Image.Image
+    prediction: Prediction
+    assessment: ProcessingAssessment
+    operating_threshold: float
+
+    def as_outputs(self) -> tuple[Image.Image, dict[str, float], str, str, str, dict[str, object]]:
+        prediction = _prediction_summary(self.prediction, self.operating_threshold)
+        summary = {
+            "prediction": prediction,
+            "operating_threshold": self.operating_threshold,
+            "processing_assessment": self.assessment.to_dict(),
+        }
+        return (
+            self.image,
+            {
+                "AI-generated": self.prediction.probability_ai,
+                "Authentic": self.prediction.probability_real,
+            },
+            _direct_verdict_card(self.prediction, self.operating_threshold),
+            _processing_card(self.assessment),
+            _direct_provenance(self.prediction),
+            summary,
+        )
+
+
+def analyze_single_upload(
+    image: Image.Image | None,
+    service: InferenceService,
+) -> DirectAnalysis:
+    """Analyze the uploaded image exactly as received, without adding another transformation."""
+
+    if image is None:
+        raise UserInputError("Upload an image before analysis")
+    clean_image = _decode_upload(image)
+    return DirectAnalysis(
+        image=clean_image,
+        prediction=service.predict(clean_image),
+        assessment=assess_processing(image),
+        operating_threshold=service.operating_threshold,
+    )
+
+
 def analyze_upload(
     image: Image.Image | None,
     condition_id: str,
     service: InferenceService,
 ) -> UploadAnalysis:
-    if image is None:
-        raise UserInputError("Upload an image before analysis")
-    try:
-        clean_image = image.convert("RGB")
-        clean_image.load()
-    except (OSError, TypeError, ValueError) as error:
-        raise UserInputError("Upload a decodable image") from error
+    clean_image = _decode_upload(image)
     spec = get_spec(condition_id)
     transformed_image = apply_transform(clean_image, spec, seed=17)
     stability = service.compare_transform(clean_image, spec, seed=17)
@@ -131,7 +170,7 @@ def create_app(service: InferenceService):
         with gr.Column(elem_id="prooflens-shell"):
             gr.Markdown(
                 "# ProofLens\n"
-                "### Image authenticity signals that are tested for robustness"
+                "### Authentic versus AI-generated image analysis"
             )
             gr.Markdown(
                 "Research demonstration only — scores indicate model evidence, not forensic proof.",
@@ -145,36 +184,25 @@ def create_app(service: InferenceService):
                         height=360,
                     )
                 with gr.Column(scale=2, elem_classes=["panel"]):
-                    gr.Markdown("### Robustness check")
+                    gr.Markdown("### Analyze as received")
                     gr.Markdown(
-                        "ProofLens analyzes the original and a controlled transformation to show "
-                        "whether the result survives ordinary image processing."
+                        "ProofLens accepts images that may already have been compressed, blurred, "
+                        "cropped, recolored, or resized. It does not alter the upload before scoring."
                     )
-                    condition = gr.Dropdown(
-                        choices=[
-                            (_transformation_label(spec.condition_id), spec.condition_id)
-                            for spec in canonical_specs()
-                        ],
-                        value="jpeg_q30",
-                        label="Transformation",
-                    )
-                    analyze = gr.Button("Analyze image", variant="primary", size="lg")
+                    analyze = gr.Button("Analyze picture", variant="primary", size="lg")
 
             gr.Markdown("## Result")
             verdict = gr.HTML(_empty_verdict_card())
-            stability_card = gr.HTML(_empty_stability_card())
+            processing_card = gr.HTML(_empty_processing_card())
             provenance = gr.Markdown(
                 "Upload an image to see model and preprocessing provenance.",
                 elem_classes=["provenance"],
             )
 
-            with gr.Accordion("Inspect images and probabilities", open=True):
+            with gr.Accordion("Inspect image and probabilities", open=True):
                 with gr.Row():
-                    clean_output = gr.Image(label="Original image")
-                    transformed_output = gr.Image(label="Transformed image")
-                with gr.Row():
-                    clean_probabilities = gr.Label(label="Original probabilities")
-                    transformed_probabilities = gr.Label(label="Transformed probabilities")
+                    image_output = gr.Image(label="Analyzed image")
+                    probabilities = gr.Label(label="Probabilities")
 
             with gr.Accordion("Technical details", open=False):
                 summary = gr.JSON(label="Prediction record")
@@ -187,36 +215,32 @@ def create_app(service: InferenceService):
                     "- Fixture-demo artifacts validate the workflow only and are not a real-world detector."
                 )
 
-        def callback(uploaded: Image.Image | None, selected: str):
+        def callback(uploaded: Image.Image | None):
             try:
-                return analyze_upload(uploaded, selected, service).as_outputs()
+                return analyze_single_upload(uploaded, service).as_outputs()
             except ProofLensError as error:
                 message = html.escape(str(error))
                 return (
                     None,
-                    None,
-                    {},
                     {},
                     (
                         '<div class="result-card neutral">'
                         "<strong>Cannot analyze image</strong>"
                         f"<span>{message}</span></div>"
                     ),
-                    _empty_stability_card(),
+                    _empty_processing_card(),
                     "Check the upload and try again.",
                     {"error": str(error)},
                 )
 
         analyze.click(
             fn=callback,
-            inputs=[image, condition],
+            inputs=[image],
             outputs=[
-                clean_output,
-                transformed_output,
-                clean_probabilities,
-                transformed_probabilities,
+                image_output,
+                probabilities,
                 verdict,
-                stability_card,
+                processing_card,
                 provenance,
                 summary,
             ],
@@ -241,6 +265,53 @@ def _verdict_card(summary: dict[str, object]) -> str:
         f"Decision threshold {threshold:.1%}</span>"
         f'<span class="pill">{confidence_label} · {confidence:.1%} confidence</span>'
         "</div>"
+    )
+
+
+def _direct_verdict_card(prediction: Prediction, threshold: float) -> str:
+    ai_signal = prediction.probability_ai >= threshold
+    signal = "AI-generated signal" if ai_signal else "Authentic signal"
+    tone = "ai" if ai_signal else "authentic"
+    return (
+        f'<div class="result-card {tone}">'
+        '<span class="eyebrow">Primary result</span>'
+        f"<strong>{signal}</strong>"
+        f'<span class="result-copy">AI probability {prediction.probability_ai:.1%} · '
+        f"Decision threshold {threshold:.1%}</span>"
+        f'<span class="pill">{_confidence_label(prediction.confidence)} · '
+        f"{prediction.confidence:.1%} confidence</span>"
+        "</div>"
+    )
+
+
+def _processing_card(assessment: ProcessingAssessment) -> str:
+    if assessment.detected:
+        heading = "Possible prior processing"
+        labels = ", ".join(html.escape(label) for label in assessment.likely_transformations)
+        evidence = " ".join(html.escape(item) for item in assessment.evidence)
+        tone = "warning"
+    else:
+        heading = "No strong processing signal"
+        labels = "No visible transformation was identified."
+        evidence = html.escape(assessment.evidence[0])
+        tone = "stable"
+    return (
+        f'<div class="result-card {tone}">'
+        '<span class="eyebrow">Processing estimate</span>'
+        f"<strong>{heading}</strong>"
+        f'<span class="result-copy">{labels}</span>'
+        f'<span class="result-copy">{evidence}</span>'
+        f'<span class="pill">{html.escape(assessment.confidence.title())} confidence · heuristic only</span>'
+        f'<span class="result-copy">{html.escape(assessment.caveat)}</span>'
+        "</div>"
+    )
+
+
+def _direct_provenance(prediction: Prediction) -> str:
+    return (
+        f"**Model:** `{prediction.model_version}` · "
+        f"**Preprocessing:** `{prediction.preprocessing_version}` · "
+        f"**Inference:** `{prediction.inference_ms:.1f} ms`"
     )
 
 
@@ -310,7 +381,7 @@ def _empty_verdict_card() -> str:
     return (
         '<div class="result-card neutral"><span class="eyebrow">Primary result</span>'
         "<strong>Waiting for an image</strong>"
-        '<span class="result-copy">Upload an image and select Analyze image.</span></div>'
+        '<span class="result-copy">Upload an image and select Analyze picture.</span></div>'
     )
 
 
@@ -320,6 +391,25 @@ def _empty_stability_card() -> str:
         "<strong>No comparison yet</strong>"
         '<span class="result-copy">A transformed comparison will appear here.</span></div>'
     )
+
+
+def _empty_processing_card() -> str:
+    return (
+        '<div class="result-card neutral"><span class="eyebrow">Processing estimate</span>'
+        "<strong>Waiting for an image</strong>"
+        '<span class="result-copy">Visible processing signals will appear here.</span></div>'
+    )
+
+
+def _decode_upload(image: Image.Image | None) -> Image.Image:
+    if image is None:
+        raise UserInputError("Upload an image before analysis")
+    try:
+        clean_image = image.convert("RGB")
+        clean_image.load()
+    except (OSError, TypeError, ValueError) as error:
+        raise UserInputError("Upload a decodable image") from error
+    return clean_image
 
 
 _APP_CSS = """
