@@ -16,6 +16,7 @@ import torch
 import yaml
 
 from prooflens.config import load_config
+from prooflens.data.hashing import sha256_file
 from prooflens.data.transforms import canonical_specs
 
 Status = Literal["pass", "warn", "block"]
@@ -75,6 +76,19 @@ def write_pilot_manifest(source: Path, destination: Path, per_label_split: int =
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     pilot.to_parquet(destination, index=False)
+    metadata = {
+        "schema_version": 1,
+        "source_manifest_sha256": sha256_file(source),
+        "parent_split_sha256": sha256_file(source),
+        "split_sha256": sha256_file(destination),
+        "derivation": {
+            "kind": "deterministic-pilot-subset",
+            "per_label_split": per_label_split,
+        },
+    }
+    destination.with_suffix(".json").write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return destination
 
 

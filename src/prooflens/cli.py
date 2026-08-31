@@ -685,6 +685,7 @@ def _publish_verified_onnx(
             sample,
             temperature=temperature,
             report_path=staged_report,
+            release_model_before_onnx=True,
         )
         report_payload = json.loads(staged_report.read_text(encoding="utf-8"))
         report_payload["onnx_path"] = str(destination)

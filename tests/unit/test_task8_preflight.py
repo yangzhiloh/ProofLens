@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -55,6 +56,12 @@ def test_pilot_manifest_is_deterministic_balanced_and_bounded(tmp_path: Path) ->
     first_frame = pd.read_parquet(first)
 
     assert first.read_bytes() == second.read_bytes()
+    assert first.with_suffix(".json").read_bytes() == second.with_suffix(
+        ".json"
+    ).read_bytes()
+    metadata = json.loads(first.with_suffix(".json").read_text(encoding="utf-8"))
+    assert metadata["split_sha256"] != metadata["source_manifest_sha256"]
+    assert metadata["derivation"]["per_label_split"] == 2
     assert first_frame.groupby(["split", "label"]).size().eq(2).all()
     assert len(first_frame) == 12
 
