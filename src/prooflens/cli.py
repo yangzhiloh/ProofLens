@@ -781,7 +781,14 @@ def run_app_cli(args: argparse.Namespace) -> int:
             preprocessing_version=expected_version,
         )
     app = create_app(InferenceService.from_calibration(backend, args.calibration))
-    app.launch()
+    app.launch(
+        server_name="127.0.0.1",
+        share=False,
+        prevent_thread_lock=True,
+    )
+    block_thread = getattr(app, "block_thread", None)
+    if callable(block_thread):
+        block_thread()
     return 0
 
 
