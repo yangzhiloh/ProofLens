@@ -18,9 +18,11 @@ Fixture metrics from
 ## Intended use
 
 The intended use is research and demonstration of image-level authentic versus AI-generated
-scoring under documented post-processing conditions. The local app can compare one image with a
-deterministically transformed view to expose score instability. Outputs may support controlled
-experiments, model comparison, and human review.
+scoring under documented post-processing conditions. The local app scores one uploaded image
+exactly as received, including images already compressed, blurred, cropped, recolored, or
+resized. Robustness is established through the frozen clean and transformed evaluation suites,
+not through an interactive image comparison. Outputs may support controlled experiments, model
+comparison, and human review.
 
 This model is not intended to provide forensic proof, determine authorship, make autonomous
 moderation decisions, or evaluate video, audio, or pixel-level provenance.

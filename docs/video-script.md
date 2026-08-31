@@ -55,8 +55,10 @@ describe this frozen dataset and split, not every image domain or generator."
 
 ## 1:55 to 2:35, local app
 
-On screen: launch the parity-verified ONNX app, upload a permitted image, select one canonical
-condition, and click Analyze.
+On screen: launch the parity-verified ONNX app. Upload two or three permitted examples one at a
+time, including an image that was already JPEG-compressed, blurred, cropped, or resized before
+upload. Click Analyze picture for each example and show the resulting probabilities and
+provenance.
 
 Command shown:
 
@@ -66,10 +68,12 @@ python -m prooflens.cli app --backend onnx --model artifacts/export/prooflens.on
 
 Narration:
 
-"The local app uses the same calibrated inference service as the command-line workflow. It shows
-authentic and AI-generated probabilities for the clean and transformed views, the selected
-condition and parameters, model and preprocessing versions, inference time, and the absolute
-probability change."
+"The local app uses the same calibrated inference service as the command-line workflow. It
+analyzes each image exactly as uploaded, even when the image has already been compressed,
+blurred, cropped, recolored, or resized. It shows authentic and AI-generated probabilities, the
+decision threshold, processing observations, and model provenance. The robustness claim comes
+from the measured condition-level evaluation shown earlier, not from the interface applying a
+second edit."
 
 ## 2:35 to 3:05, export and reproducibility
 

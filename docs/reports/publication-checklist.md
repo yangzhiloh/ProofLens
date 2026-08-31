@@ -14,9 +14,9 @@ Date: 2026-08-31
       `5fa8e6dd804d8f9c9a2908262048d7ba0d7924e37dafa90906b9c3c7db60b84c`
 - [x] Checkpoint asset digest matches local SHA-256
       `1dbfac985e20263ccf13db02762d1b6cc075ba5945721a72fc7cdbaabc3df56c`
-- [x] CPU inference and clean/transformed comparison passed
+- [x] CPU inference and the programmatic clean/transformed comparison utility passed
 - [x] Clean-checkout locked installation, miniature reproduction, and release scan passed
-- [x] Full local suite passed: 440 tests, one optional OpenVINO skip, Ruff, and release check
+- [x] Full local suite passed: 453 tests, one optional OpenVINO skip, Ruff, and release check
 - [x] GitHub Windows/Linux Python 3.11/3.12 CI passed for Tasks 8 and 9
 - [x] README, model card, results, error analysis, acceptance report, Devpost copy, and video
       script contain consistent measured values and limitations

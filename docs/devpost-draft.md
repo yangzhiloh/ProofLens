@@ -39,7 +39,8 @@ ProofLens includes:
 - clean, robust, worst-condition, and unseen-generator evaluation
 - validation-only temperature calibration and deterministic checkpoint selection
 - PyTorch inference, parity-gated ONNX export, and optional OpenVINO smoke testing
-- a Gradio app for clean and transformed probability comparison
+- a Gradio app that scores already processed images exactly as uploaded
+- recursive directory inference with portable `image_path` and calibrated `pred` JSON records
 - machine-readable metrics, robustness tables, plots, and error-gallery support
 - an offline miniature workflow plus Windows and Linux CPU CI
 
@@ -80,9 +81,11 @@ worst-condition ROC AUC, and 0.9657 unseen-generator ROC AUC. At the selected th
 accuracy was 0.9100, precision 0.9020, recall 0.9200, and F1 0.9109, with five false positives
 and four false negatives. A 32-sample ONNX comparison passed the `1e-4` parity tolerance.
 
-On a Windows CPU, one accepted clean/transformed two-pass app request used 639.5 ms of model
-inference and 2846.35 ms end to end. This is one acceptance observation, not a benchmark
-distribution. Full evidence and limitations are in `docs/reports/` and `docs/model-card.md`.
+On a Windows CPU, the accepted production model loaded successfully and one image prediction
+used 323.58 ms of model inference. This is one acceptance observation, not a benchmark
+distribution. The displayed app now analyzes each uploaded image as received. Robustness is
+supported by the condition-level test results above rather than an interactive comparison. Full
+evidence and limitations are in `docs/reports/` and `docs/model-card.md`.
 
 ## Limitations and responsible use
 

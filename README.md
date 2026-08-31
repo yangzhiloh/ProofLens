@@ -180,9 +180,12 @@ uv sync --locked --all-extras
 uv run --locked --all-extras python -m prooflens.cli export --selection artifacts/selection.json --format openvino --verify 32 --output artifacts/export/prooflens.onnx
 ```
 
-The app displays calibrated authentic and AI-generated probabilities, a threshold-relative
-label, one selected transformation, and the absolute probability change. It is a demonstration,
-not forensic proof.
+The app analyzes one uploaded image exactly as received. It displays calibrated authentic and
+AI-generated probabilities, a threshold-relative label, processing observations, and model
+provenance. Uploads may already be compressed, blurred, cropped, recolored, or resized. The app
+does not apply another transformation, and its output is a research signal rather than forensic
+proof. Transformation robustness is demonstrated by the condition-level evaluation reports,
+not by an interactive comparison.
 
 The Windows CPU acceptance and clean-checkout evidence are recorded in the
 [`Task 9 acceptance report`](docs/reports/acceptance-report.md). A visual browser automation

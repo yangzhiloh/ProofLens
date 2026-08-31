@@ -5,10 +5,13 @@ Branch: `codex/task9-acceptance`
 Task 8 export commit: `d881cd3`  
 Windows launch fix commit: `1e002e9`
 
-## Laptop acceptance
+## Historical laptop acceptance
 
 The parity-verified E2 ONNX model was loaded on a Windows CPU and exercised through the live
 Gradio HTTP API with a held-out valid image and the canonical `jpeg_q30` transformation.
+This acceptance exercised the programmatic comparison utility that remains available for
+controlled testing. It does not describe the current displayed interface, which scores one
+uploaded image exactly as received.
 
 | Check | Result |
 | --- | --- |
@@ -23,10 +26,10 @@ Gradio HTTP API with a held-out valid image and the canonical `jpeg_q30` transfo
 | Model provenance | `prooflens-e2-onnx` |
 | Preprocessing provenance | `dinov2-base-224-v1` |
 
-The app reported both calibrated probabilities, both verdicts, the selected condition, the
-probability change, timing, model version, and preprocessing version. Visual browser automation
-could not connect to the host loopback service, so acceptance used the live Gradio endpoint
-rather than a scripted browser click-through.
+The comparison API reported both calibrated probabilities, both verdicts, the selected
+condition, the probability change, timing, model version, and preprocessing version. Visual
+browser automation could not connect to the host loopback service, so this historical acceptance
+used the live Gradio endpoint rather than a scripted browser click-through.
 
 ## Clean-checkout acceptance
 
@@ -56,7 +59,7 @@ using the primary dataset or its weights. The release scanner returned `release 
 
 - CPU ONNX load and inference: PASS
 - Valid image analysis: PASS
-- Clean/transformed comparison: PASS
+- Programmatic clean/transformed comparison utility: PASS
 - Clean-checkout locked installation and reproduction: PASS
 - Release scanner in clean checkout: PASS
 - Final repository suite: PASS (440 tests passed, 1 optional OpenVINO test skipped, Ruff passed,
