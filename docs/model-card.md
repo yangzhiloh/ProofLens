@@ -9,8 +9,10 @@ input. A layer-normalization and linear binary head follows the class-token repr
 
 E2 is the selected production candidate. Its calibrated untouched-test results and ONNX parity
 evidence are documented in `docs/reports/final-robustness.md`. No checkpoint or ONNX binary is
-tracked in this repository; the parity-verified export remains a local generated artifact until
-separately reviewed release storage is provided. Fixture metrics from
+tracked in this repository; the parity-verified checkpoint, ONNX model, calibration, manifest,
+selection record, parity report, and checksums are distributed through the
+[`prooflens-e2-rc1` GitHub Release](https://github.com/yangzhiloh/Tiktoky/releases/tag/prooflens-e2-rc1).
+Fixture metrics from
 `scripts/reproduce_small.py` validate software flow only and are not primary-dataset results.
 
 ## Intended use
@@ -70,8 +72,9 @@ composite. After validation-only calibration, untouched-test clean AUC was 0.978
 AUC was 0.9783, worst-condition AUC was 0.9728, and unseen-generator AUC was 0.9657. Accuracy at
 the selected threshold was 0.9100 with 5 false positives and 4 false negatives. The 32-sample
 ONNX parity gate passed at a `1e-4` tolerance. See `docs/reports/experiment-summary.md`,
-`docs/reports/final-robustness.md`, and `docs/reports/acceptance-report.md`. Task 10 records and
-publishes the submission and provides separately hosted artifacts.
+`docs/reports/final-robustness.md`, and `docs/reports/acceptance-report.md`. The separately hosted
+artifacts are linked above; video recording and submission remain owner-approved publication
+actions.
 
 ## Limitations
 

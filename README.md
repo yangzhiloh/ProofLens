@@ -12,9 +12,10 @@ untouched-test evaluation, parity-gated ONNX export, and Windows CPU acceptance 
 E2 was selected with a validation composite AUC of 0.9832. On the untouched test set it achieved
 0.9788 clean ROC AUC and 0.9783 macro robust ROC AUC; see the
 [`final robustness report`](docs/reports/final-robustness.md). Model weights and generated
-artifacts are intentionally excluded from Git and still require separately reviewed release
-storage. The miniature fixture workflow remains a software reproducibility check, not evidence
-of primary-model performance.
+artifacts are intentionally excluded from Git and distributed through the
+[`prooflens-e2-rc1` GitHub Release](https://github.com/yangzhiloh/Tiktoky/releases/tag/prooflens-e2-rc1).
+The miniature fixture workflow remains a software reproducibility check, not evidence of
+primary-model performance.
 
 ## Requirements
 
@@ -172,6 +173,27 @@ not forensic proof.
 The Windows CPU acceptance and clean-checkout evidence are recorded in the
 [`Task 9 acceptance report`](docs/reports/acceptance-report.md). A visual browser automation
 limitation did not affect the live Gradio API acceptance.
+
+### Download the released model
+
+The large model files remain outside Git history. With the GitHub CLI installed, download the
+CPU demo artifacts from the repository root:
+
+```powershell
+New-Item -ItemType Directory -Path artifacts/export -Force | Out-Null
+gh release download prooflens-e2-rc1 --repo yangzhiloh/Tiktoky --pattern prooflens.onnx --pattern artifact_manifest.json --pattern export_report.json --dir artifacts/export
+gh release download prooflens-e2-rc1 --repo yangzhiloh/Tiktoky --pattern calibration.json --pattern selection.json --dir artifacts
+```
+
+Then launch the production-candidate demo:
+
+```powershell
+uv run --locked --extra dev python -m prooflens.cli app --backend onnx --model artifacts/export/prooflens.onnx --calibration artifacts/calibration.json
+```
+
+The release also provides `prooflens-e2-checkpoint.pt` for reproducibility. It is not required
+for the ONNX demo. Verify downloaded files against the release's `SHA256SUMS.txt` before
+redistribution.
 
 ## Artifact layout
 

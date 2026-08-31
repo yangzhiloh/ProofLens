@@ -62,5 +62,7 @@ using the primary dataset or its weights. The release scanner returned `release 
 - Final repository suite: PASS (440 tests passed, 1 optional OpenVINO test skipped, Ruff passed,
   and release check passed)
 
-Task 10 remains responsible for separately hosted model-artifact links, video recording, public
-publication, and final human verification of every public destination.
+The model-artifact bundle is hosted at
+`https://github.com/yangzhiloh/Tiktoky/releases/tag/prooflens-e2-rc1`. The remaining human-only
+actions are recording/uploading the demonstration, reviewing the final publication copy, and
+submitting it through the destination account.

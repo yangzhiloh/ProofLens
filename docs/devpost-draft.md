@@ -2,11 +2,15 @@
 
 ## Publication status
 
-This is a fact-only pre-publication draft. E0 through E4, validation selection, calibration,
-untouched-test reporting, parity-gated ONNX export, and Task 9 CPU and clean-checkout acceptance
-are complete. The public demonstration recording, separately hosted model artifacts, link
-verification, and publication belong to Task 10. Fixture workflow values are not project
-performance claims.
+This is the fact-checked publication copy. E0 through E4, validation selection, calibration,
+untouched-test reporting, parity-gated ONNX export, CPU and clean-checkout acceptance, and
+separately hosted model artifacts are complete. The repository and release destinations are
+listed below. A human still needs to record/upload the demonstration and submit this copy through
+the publication account. Fixture workflow values are not project performance claims.
+
+- Repository: https://github.com/yangzhiloh/Tiktoky
+- Model release: https://github.com/yangzhiloh/Tiktoky/releases/tag/prooflens-e2-rc1
+- Demonstration video: add the verified public URL after upload
 
 ## Project summary
 
@@ -94,6 +98,7 @@ are excluded from Git and require separate publication review.
 
 ## Final publication gate
 
-Publish this entry only in Task 10. The release check must pass on the final tracked tree, public
-artifact links must be manually verified, separately hosted weights must be reviewed, and a
-human must review the text and record the demonstration video.
+The final tracked tree, public artifact links, and separately hosted weights have automated
+verification evidence in `docs/reports/publication-checklist.md`. Before submitting, a human must
+review this copy, record and upload the demonstration video, insert its verified URL above, and
+confirm the destination platform's terms and required fields.
