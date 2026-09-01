@@ -10,7 +10,7 @@ through the publication account. Fixture workflow values are not project perform
 
 - Repository: https://github.com/yangzhiloh/ProofLens
 - Model release: https://github.com/yangzhiloh/ProofLens/releases/tag/prooflens-e2-rc1
-- Demonstration video: add the verified public URL after upload
+- Demonstration video: https://youtu.be/r-eNOps1qo0
 
 The linked RC1 release contains the earlier public demo bundle. Publish the matching E2-on-SID
 bundle before submitting the latest evaluation results below.

@@ -28,7 +28,8 @@ Date: 2026-08-31
 
 - [x] Record the 2-to-4-minute demonstration using `docs/video-script.md`
 - [x] Upload the video to an approved public destination
-- [ ] Add and open the public video URL in `docs/devpost-draft.md`
+- [x] Add and open the public video URL in `docs/devpost-draft.md`:
+      `https://youtu.be/r-eNOps1qo0`
 - [ ] Review the final text, screenshots, attribution, and platform-required fields
 - [ ] Submit or publish through the owner's authenticated account
 
