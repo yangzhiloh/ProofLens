@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import shutil
 import tempfile
@@ -319,9 +320,7 @@ def _save_selected_images(
             raise DatasetAcquisitionError(f"SID acquisition contains duplicate img_id: {image_id}")
         seen_ids.add(image_id)
         label = int(row[config.label_field])
-        image = row.get(config.image_field)
-        if not isinstance(image, Image.Image):
-            raise DatasetAcquisitionError(f"SID row {image_id} has no decoded PIL image")
+        image = _decode_sid_image(row.get(config.image_field), image_id)
         relative = Path(str(label)) / (
             f"{hashlib.sha256(image_id.encode('utf-8')).hexdigest()}.png"
         )
@@ -356,9 +355,36 @@ def _observed_revision(dataset: object, fallback: str) -> str:
 
 
 def _load_hugging_face_dataset(dataset_id: str, **kwargs: object):
+    from datasets import Image as DatasetImage
     from datasets import load_dataset
 
-    return load_dataset(dataset_id, **kwargs)
+    dataset = load_dataset(dataset_id, **kwargs)
+    column_names = set(getattr(dataset, "column_names", ()))
+    if "mask" in column_names:
+        dataset = dataset.remove_columns("mask")
+    if "image" in column_names:
+        dataset = dataset.cast_column("image", DatasetImage(decode=False))
+    return dataset
+
+
+def _decode_sid_image(value: object, image_id: str) -> Image.Image:
+    if isinstance(value, Image.Image):
+        return value
+    if isinstance(value, Mapping):
+        encoded = value.get("bytes")
+        path = value.get("path")
+        try:
+            if isinstance(encoded, bytes):
+                with Image.open(io.BytesIO(encoded)) as source:
+                    return source.copy()
+            if isinstance(path, str) and path:
+                with Image.open(path) as source:
+                    return source.copy()
+        except (OSError, ValueError) as error:
+            raise DatasetAcquisitionError(
+                f"SID row {image_id} contains an invalid encoded image"
+            ) from error
+    raise DatasetAcquisitionError(f"SID row {image_id} has no usable image")
 
 
 def _json_value(value: Any) -> Any:

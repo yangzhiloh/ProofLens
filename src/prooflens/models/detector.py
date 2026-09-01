@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+import torch
 from torch import Tensor, nn
 from torch.nn import functional
 
@@ -32,7 +33,14 @@ class DinoDetector(nn.Module):
         return cls(backbone=backbone, hidden_size=hidden_size)
 
     def forward(self, pixel_values: Tensor) -> DetectorOutput:
-        if pixel_values.ndim != 4 or pixel_values.shape[1] != 3:
+        # Tensor dimensions become symbolic while the legacy ONNX exporter traces
+        # this method.  Evaluating a symbolic dimension as a Python boolean both
+        # produces a TracerWarning and hard-codes the result into the graph.  The
+        # preprocessing and exporter validate their inputs separately, so retain
+        # this helpful runtime check without executing it during tracing.
+        if not torch.jit.is_tracing() and (
+            pixel_values.ndim != 4 or pixel_values.shape[1] != 3
+        ):
             raise ValueError("pixel_values must have shape [batch, 3, height, width]")
         hidden = self.backbone(pixel_values=pixel_values).last_hidden_state[:, 0]
         normalized = self.feature_norm(hidden)

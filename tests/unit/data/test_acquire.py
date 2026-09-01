@@ -1,4 +1,5 @@
 import json
+import io
 from pathlib import Path
 from typing import Any
 
@@ -94,6 +95,24 @@ def test_acquire_sid_subset_persists_rgb_images_manifest_and_metadata(tmp_path: 
         "observed_dataset_revision": "observed-revision-987",
         "split": "validation",
     }
+
+
+def test_acquire_sid_subset_decodes_lazy_hugging_face_image_bytes(tmp_path: Path) -> None:
+    encoded = io.BytesIO()
+    Image.new("RGB", (7, 6), "green").save(encoded, format="PNG")
+    rows = [
+        {"img_id": "real", "label": 0, "image": {"bytes": encoded.getvalue(), "path": None}},
+        {"img_id": "fake", "label": 1, "image": {"bytes": encoded.getvalue(), "path": None}},
+    ]
+
+    summary = acquire_sid_subset(
+        {"revision": "pinned-123", "per_class": 1},
+        tmp_path / "sid-lazy",
+        dataset_loader=lambda dataset_id, **kwargs: TinyStreamingDataset(rows),
+    )
+
+    frame = pd.read_parquet(summary.manifest_path)
+    assert set(zip(frame["width"], frame["height"], strict=True)) == {(7, 6)}
 
 
 def test_acquire_sid_subset_rejects_underfilled_stream_without_partial_output(
