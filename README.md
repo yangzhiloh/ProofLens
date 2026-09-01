@@ -7,12 +7,16 @@ generator families out of training for unseen-generator evaluation.
 
 ## Release status
 
-The implementation, E0 through E4 experiments, validation-only selection and calibration,
-untouched-test evaluation, parity-gated ONNX export, and Windows CPU acceptance are complete.
-E2 was selected with a validation composite AUC of 0.9832. On the untouched test set it achieved
-0.9788 clean ROC AUC and 0.9783 macro robust ROC AUC; see the
-[`final robustness report`](docs/reports/final-robustness.md). Model weights and generated
-artifacts are intentionally excluded from Git and distributed through the
+The implementation, E0 through E4 experiments, SID-Set fine-tuning, validation-only selection
+and calibration, untouched-test evaluation, parity-gated ONNX export, and Windows CPU
+acceptance are complete. The final E2-on-SID model achieved 0.9974 clean ROC AUC and 0.9971
+transformation-family macro ROC AUC on the held-out primary test set. See the
+[`final evaluation report`](artifacts/deliverables/ProofLens_Evaluation_Report.docx) for the
+complete evaluation design, metrics, robustness results, error-case analysis, deployment
+verification, and limitations. The supporting Markdown
+[`robustness report`](docs/reports/final-robustness.md) documents the earlier E2 evaluation.
+Model weights and generated artifacts are intentionally excluded from Git. They are distributed
+through the
 [`prooflens-e2-rc1` GitHub Release](https://github.com/yangzhiloh/Tiktoky/releases/tag/prooflens-e2-rc1).
 The miniature fixture workflow remains a software reproducibility check, not evidence of
 primary-model performance.
@@ -226,10 +230,13 @@ artifacts/reports/final/                  test metrics, table, and AUC plot
 artifacts/reports/stress/                 supplemental redistribution stress results
 artifacts/export/prooflens.onnx           parity-verified export, when available
 artifacts/export/export_report.json       ONNX parity evidence, when available
+artifacts/deliverables/ProofLens_Evaluation_Report.docx
+                                           tracked final evaluation document
 ```
 
-`data/` and `artifacts/` are intentionally excluded from Git. Publish weights or large exports
-only through separately reviewed release storage.
+`data/` and generated files under `artifacts/` are intentionally excluded from Git. The final
+evaluation document listed above is a deliberately tracked exception. Publish weights or large
+exports only through separately reviewed release storage.
 
 ## Expected failures
 
