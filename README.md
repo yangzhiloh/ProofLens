@@ -9,15 +9,18 @@ generator families out of training for unseen-generator evaluation.
 
 The implementation, E0 through E4 experiments, SID-Set fine-tuning, validation-only selection
 and calibration, untouched-test evaluation, parity-gated ONNX export, and Windows CPU
-acceptance are complete. The final E2-on-SID model achieved 0.9974 clean ROC AUC and 0.9971
-transformation-family macro ROC AUC on the held-out primary test set. See the
+acceptance are complete. The latest final E2-on-SID evaluation achieved 0.9974 clean ROC AUC
+and 0.9971 transformation-family macro ROC AUC on the held-out primary test set. See the
 [`final evaluation report`](artifacts/deliverables/ProofLens_Evaluation_Report.docx) for the
 complete evaluation design, metrics, robustness results, error-case analysis, deployment
 verification, and limitations. The supporting Markdown
-[`robustness report`](docs/reports/final-robustness.md) documents the earlier E2 evaluation.
+[`robustness report`](docs/reports/final-robustness.md) contains the same final evaluation summary.
 Model weights and generated artifacts are intentionally excluded from Git. They are distributed
 through the
-[`prooflens-e2-rc1` GitHub Release](https://github.com/yangzhiloh/Tiktoky/releases/tag/prooflens-e2-rc1).
+[`prooflens-e2-rc1` GitHub Release](https://github.com/yangzhiloh/ProofLens/releases/tag/prooflens-e2-rc1).
+The current RC1 bundle contains the earlier public demo artifacts. Publish the matching
+E2-on-SID checkpoint, ONNX export, calibration, and provenance bundle before presenting it as the
+model that produced the final report above.
 The miniature fixture workflow remains a software reproducibility check, not evidence of
 primary-model performance.
 
@@ -208,8 +211,8 @@ CPU demo artifacts from the repository root:
 
 ```powershell
 New-Item -ItemType Directory -Path artifacts/export -Force | Out-Null
-gh release download prooflens-e2-rc1 --repo yangzhiloh/Tiktoky --pattern prooflens.onnx --pattern artifact_manifest.json --pattern export_report.json --dir artifacts/export
-gh release download prooflens-e2-rc1 --repo yangzhiloh/Tiktoky --pattern calibration.json --pattern selection.json --dir artifacts
+gh release download prooflens-e2-rc1 --repo yangzhiloh/ProofLens --pattern prooflens.onnx --pattern artifact_manifest.json --pattern export_report.json --dir artifacts/export
+gh release download prooflens-e2-rc1 --repo yangzhiloh/ProofLens --pattern calibration.json --pattern selection.json --dir artifacts
 ```
 
 Then launch the production-candidate demo:
@@ -232,8 +235,8 @@ artifacts/manifests/primary-split.parquet grouped split used by every experiment
 artifacts/runs/e0 ... e4/                 resolved config, metadata, checkpoints, predictions
 artifacts/selection.json                  selected run and validation split provenance
 artifacts/calibration.json                validation-fitted temperature and threshold
-artifacts/reports/final/                  test metrics, table, and AUC plot
-artifacts/reports/stress/                 supplemental redistribution stress results
+artifacts/reports/sid-comparison-final/   test metrics, table, and AUC plot
+artifacts/reports/sid-comparison-stress/  supplemental redistribution stress results
 artifacts/export/prooflens.onnx           parity-verified export, when available
 artifacts/export/export_report.json       ONNX parity evidence, when available
 artifacts/deliverables/ProofLens_Evaluation_Report.docx

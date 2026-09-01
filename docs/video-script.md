@@ -47,10 +47,10 @@ table. Do not show fixture metrics as project results.
 
 Narration:
 
-"E2 was selected on validation data with a composite AUC of 0.9832. On the untouched test set,
-clean ROC AUC was 0.9788 and family-macro robust ROC AUC was 0.9783. The worst tested condition
-had 0.9728 AUC, while unseen-generator AUC was 0.9657. At the validation-selected threshold,
-accuracy was 91 percent, with five false positives and four false negatives. These measurements
+"E2-on-SID was selected using validation data. On the untouched primary test set of 1,006 images,
+clean ROC AUC was 0.9974 and family-macro robust ROC AUC was 0.9971. The worst tested condition
+had 0.9966 AUC, while unseen-generator AUC was 0.9638. At the validation-selected threshold,
+accuracy was 98.41 percent, with 14 false positives and 2 false negatives. These measurements
 describe this frozen dataset and split, not every image domain or generator."
 
 ## 1:55 to 2:35, local app
@@ -96,5 +96,5 @@ compound edits, and unusual content can still change scores. False positives and
 require human review. Dataset and model terms remain separate from the MIT project code, and
 WildFake redistribution stays blocked until its licence is verified."
 
-End on the verified repository URL: `https://github.com/yangzhiloh/Tiktoky`. After uploading the
+End on the verified repository URL: `https://github.com/yangzhiloh/ProofLens`. After uploading the
 video, add its verified public URL to `docs/devpost-draft.md` before submitting.

@@ -11,7 +11,10 @@ E2 is the selected production candidate. Its calibrated untouched-test results a
 evidence are documented in `docs/reports/final-robustness.md`. No checkpoint or ONNX binary is
 tracked in this repository; the parity-verified checkpoint, ONNX model, calibration, manifest,
 selection record, parity report, and checksums are distributed through the
-[`prooflens-e2-rc1` GitHub Release](https://github.com/yangzhiloh/Tiktoky/releases/tag/prooflens-e2-rc1).
+[`prooflens-e2-rc1` GitHub Release](https://github.com/yangzhiloh/ProofLens/releases/tag/prooflens-e2-rc1).
+That RC1 bundle contains the earlier public demo artifacts. A matching E2-on-SID checkpoint,
+ONNX export, calibration, and provenance bundle must be published before the latest final
+evaluation below is used as downloadable-model evidence.
 Fixture metrics from
 `scripts/reproduce_small.py` validate software flow only and are not primary-dataset results.
 
@@ -44,12 +47,14 @@ hashes, and checkpoint state.
 
 ## Datasets
 
-The smaller run uses the paired AIGenImages2026 validation subset as its primary source, pinned to
-revision `073e1924d9d0d85ac97a53b07947b6ac95ce241c` under CC BY 4.0. SID-Set remains an optional
-larger supplement pinned to `c1674903d858c78e04809c1c6f2703627ac1a621`. WildFake is an inactive
-optional source with licence status REQUIRES-VERIFICATION. CIFAKE is a separate 32 by 32
-low-resolution stress test and is excluded from primary training. Details are in
-`docs/datasets.md` and `THIRD_PARTY_NOTICES.md`.
+The latest final E2-on-SID evaluation uses SID-Set, pinned to revision
+`c1674903d858c78e04809c1c6f2703627ac1a621`, with the primary held-out test partition containing
+1,006 images: 953 authentic and 53 AI-generated. The paired AIGenImages2026 validation subset,
+pinned to revision `073e1924d9d0d85ac97a53b07947b6ac95ce241c` under CC BY 4.0, remains the
+smaller-run policy documented for bounded reproduction. WildFake is an inactive optional source
+with licence status REQUIRES-VERIFICATION. CIFAKE is a separate 32 by 32 low-resolution stress
+test and is excluded from primary training. Details are in `docs/datasets.md` and
+`THIRD_PARTY_NOTICES.md`.
 
 Labels are `0` for authentic and `1` for AI-generated. Splits operate on source groups and
 duplicate clusters, with complete generator families reserved for unseen-generator evaluation.
@@ -69,14 +74,13 @@ ROC AUC. Threshold reporting includes accuracy, precision, recall, F1, false pos
 negatives after validation-only temperature scaling and threshold selection. Model size,
 inference time, error examples, and ONNX parity are also required.
 
-E2 won validation selection with 0.9844 clean AUC, 0.9821 macro robust AUC, and a 0.9832
-composite. After validation-only calibration, untouched-test clean AUC was 0.9788, macro robust
-AUC was 0.9783, worst-condition AUC was 0.9728, and unseen-generator AUC was 0.9657. Accuracy at
-the selected threshold was 0.9100 with 5 false positives and 4 false negatives. The 32-sample
-ONNX parity gate passed at a `1e-4` tolerance. See `docs/reports/experiment-summary.md`,
-`docs/reports/final-robustness.md`, and `docs/reports/acceptance-report.md`. The separately hosted
-artifacts are linked above; video recording and submission remain owner-approved publication
-actions.
+The latest final E2-on-SID evaluation produced 0.9974 clean AUC, 0.9971 macro robust AUC,
+0.9966 worst-condition AUC, and 0.9638 unseen-generator AUC on the held-out evaluation
+partitions. At the selected threshold, accuracy was 0.9841 with 14 false positives and 2 false
+negatives. The 32-sample ONNX parity gate passed at a `1e-4` tolerance. See
+`docs/reports/final-robustness.md`, `docs/reports/acceptance-report.md`, and the tracked final
+evaluation report. The separately hosted artifacts are linked above; adding the verified video
+URL and submitting the publication copy remain owner-approved actions.
 
 ## Limitations
 

@@ -5,12 +5,15 @@
 This is the fact-checked publication copy. E0 through E4, validation selection, calibration,
 untouched-test reporting, parity-gated ONNX export, CPU and clean-checkout acceptance, and
 separately hosted model artifacts are complete. The repository and release destinations are
-listed below. A human still needs to record/upload the demonstration and submit this copy through
-the publication account. Fixture workflow values are not project performance claims.
+listed below. A human still needs to add the verified demonstration URL and submit this copy
+through the publication account. Fixture workflow values are not project performance claims.
 
-- Repository: https://github.com/yangzhiloh/Tiktoky
-- Model release: https://github.com/yangzhiloh/Tiktoky/releases/tag/prooflens-e2-rc1
+- Repository: https://github.com/yangzhiloh/ProofLens
+- Model release: https://github.com/yangzhiloh/ProofLens/releases/tag/prooflens-e2-rc1
 - Demonstration video: add the verified public URL after upload
+
+The linked RC1 release contains the earlier public demo bundle. Publish the matching E2-on-SID
+bundle before submitting the latest evaluation results below.
 
 ## Project summary
 
@@ -75,11 +78,11 @@ accuracy or robustness.
 
 ## Results
 
-E2 won validation selection with a 0.9832 composite AUC. After validation-only calibration, the
-untouched test set produced 0.9788 clean ROC AUC, 0.9783 family-macro robust ROC AUC, 0.9728
-worst-condition ROC AUC, and 0.9657 unseen-generator ROC AUC. At the selected threshold,
-accuracy was 0.9100, precision 0.9020, recall 0.9200, and F1 0.9109, with five false positives
-and four false negatives. A 32-sample ONNX comparison passed the `1e-4` parity tolerance.
+E2-on-SID was selected using validation data. After validation-only calibration, the untouched
+primary test set of 1,006 images produced 0.9974 clean ROC AUC, 0.9971 family-macro robust ROC
+AUC, 0.9966 worst-condition ROC AUC, and 0.9638 unseen-generator ROC AUC. At the selected
+threshold, accuracy was 0.9841, precision 0.7846, recall 0.9623, and F1 0.8644, with 14 false
+positives and 2 false negatives. A 32-sample ONNX comparison passed the `1e-4` parity tolerance.
 
 On a Windows CPU, the accepted production model loaded successfully and one image prediction
 used 323.58 ms of model inference. This is one acceptance observation, not a benchmark
@@ -101,7 +104,7 @@ are excluded from Git and require separate publication review.
 
 ## Final publication gate
 
-The final tracked tree, public artifact links, and separately hosted weights have automated
-verification evidence in `docs/reports/publication-checklist.md`. Before submitting, a human must
-review this copy, record and upload the demonstration video, insert its verified URL above, and
-confirm the destination platform's terms and required fields.
+The final tracked tree and evaluation evidence have automated verification in
+`docs/reports/publication-checklist.md`. Before submitting, publish the matching E2-on-SID model
+bundle, insert the verified demonstration URL above, review this copy, and confirm the destination
+platform's terms and required fields.

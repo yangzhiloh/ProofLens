@@ -62,10 +62,10 @@ using the primary dataset or its weights. The release scanner returned `release 
 - Programmatic clean/transformed comparison utility: PASS
 - Clean-checkout locked installation and reproduction: PASS
 - Release scanner in clean checkout: PASS
-- Final repository suite: PASS (440 tests passed, 1 optional OpenVINO test skipped, Ruff passed,
+- Final repository suite: PASS (454 tests passed, 1 optional OpenVINO test skipped, Ruff passed,
   and release check passed)
 
 The model-artifact bundle is hosted at
-`https://github.com/yangzhiloh/Tiktoky/releases/tag/prooflens-e2-rc1`. The remaining human-only
-actions are recording/uploading the demonstration, reviewing the final publication copy, and
+`https://github.com/yangzhiloh/ProofLens/releases/tag/prooflens-e2-rc1`. The remaining human-only
+actions are adding the verified demonstration URL, reviewing the final publication copy, and
 submitting it through the destination account.

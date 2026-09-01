@@ -1,21 +1,22 @@
 # Error analysis
 
-At the validation-selected threshold, the untouched test set produced five false positives and
-four false negatives. The aggregate condition error rates below describe the canonical
-evaluation rows; they do not expose or redistribute source images.
+At the validation-selected threshold `0.905192`, the untouched primary test set produced 14
+false positives and 2 false negatives. The aggregate condition error rates below describe the
+canonical evaluation rows; they do not expose or redistribute source images.
 
-- The highest observed transformed-condition error rate was 10% for Gaussian blur sigma 2.0,
-  color jitter, JPEG quality 30, JPEG quality 70, Gaussian noise sigma 0.02, and JPEG quality 50.
-- Clean rows produced 16 errors among 162 rows (9.88%). The larger clean count includes the
-  generator-test partition.
-- Resize 0.5, blur sigma 1.0, blur sigma 0.5, JPEG quality 90, and resize 0.25 each produced a 9%
-  error rate.
-- Noise sigma 0.10 and 0.05 each produced an 8% error rate; center crop 80% produced 7%.
+- The highest observed transformed-condition error count was 21 of 1,006 images for JPEG quality
+  30, an error rate of 2.09%.
+- The clean primary test partition produced 16 errors: 14 authentic images were classified as
+  AI-generated and 2 AI-generated images were classified as authentic.
+- The false negatives came from `flux-pro-v1.1` (1 of 3 examples) and
+  `stable-diffusion-v35-medium` (1 of 1 example). These generator-specific subsets are too
+  small for comparative claims.
+- The lowest observed condition error count was 11 of 1,006 images for Gaussian noise sigma 0.05.
 
-Among the 162 clean rows, authentic images accounted for 9 errors among 81 examples. The largest
-synthetic family with errors was fast-sdxl with 3 errors among 31 examples. Several other
-generator families contained only two to four clean test examples, so their individual rates are
-too uncertain for comparative claims.
+On the unseen-generator partition, ranking remained strong at 0.9638 ROC AUC, but the fixed
+threshold produced 3,656 false negatives and 19 false positives. This is a calibration-transfer
+failure rather than a collapse in ranking. The model still tends to rank generated images above
+authentic images, but the probability distribution shifts downward on the unseen domain.
 
 The analysis indicates that failures are not isolated to a single post-processing family.
 Content domain, generator coverage, and compound edits remain important unmeasured sources of
