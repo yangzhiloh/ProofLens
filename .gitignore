@@ -1,5 +1,7 @@
 .worktrees/
 .venv/
+.python311/
+.idea/
 __pycache__/
 *.py[cod]
 .pytest_cache/

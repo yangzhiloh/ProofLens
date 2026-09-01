@@ -288,6 +288,7 @@ def run_evaluate_cli(args: argparse.Namespace) -> int:
     from dataclasses import asdict
 
     import pandas as pd
+    import torch
     from torch.utils.data import DataLoader
 
     from prooflens.data.collate import PairedBatchCollator
@@ -310,6 +311,7 @@ def run_evaluate_cli(args: argparse.Namespace) -> int:
         processor=processor,
     )
     model = backend.model
+    evaluation_device = "cuda" if torch.cuda.is_available() else "cpu"
     frame = pd.read_parquet(config.data.manifest)
     evaluation_split = args.split
     selected = frame[frame["split"] == evaluation_split].reset_index(drop=True)
@@ -332,6 +334,7 @@ def run_evaluate_cli(args: argparse.Namespace) -> int:
             model,
             loader,
             checkpoint_id=checkpoint.stem,
+            device=evaluation_device,
             condition_override=spec.condition_id,
         )
         if index == 0:
@@ -356,7 +359,12 @@ def run_evaluate_cli(args: argparse.Namespace) -> int:
             collate_fn=collator,
             num_workers=0,
         )
-        generator = predict_loader(model, loader, checkpoint_id=checkpoint.stem)
+        generator = predict_loader(
+            model,
+            loader,
+            checkpoint_id=checkpoint.stem,
+            device=evaluation_device,
+        )
         records.append(generator[generator["condition_id"] == "clean"])
 
     predictions = pd.concat(records, ignore_index=True)
@@ -386,6 +394,7 @@ def run_evaluate_stress_cli(args: argparse.Namespace) -> int:
     """Evaluate the selected checkpoint on supplemental redistribution conditions."""
 
     import pandas as pd
+    import torch
 
     from prooflens.data.dataset import SourceImageDataset
     from prooflens.evaluation.stress import (
@@ -405,6 +414,7 @@ def run_evaluate_stress_cli(args: argparse.Namespace) -> int:
         run_dir / "checkpoints" / "best.pt",
         model_factory=lambda: DinoDetector.from_pretrained(config.model.name),
         processor=create_dinov2_processor(),
+        device="cuda" if torch.cuda.is_available() else "cpu",
     )
     selected = pd.read_parquet(config.data.manifest)
     selected = selected.loc[selected["split"] == args.split].reset_index(drop=True)
