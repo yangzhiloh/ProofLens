@@ -21,6 +21,12 @@ through the
 The miniature fixture workflow remains a software reproducibility check, not evidence of
 primary-model performance.
 
+> **Artifact alignment notice:** The downloadable `prooflens-e2-rc1` bundle currently contains
+> the earlier RC1 run, including its calibration threshold (`0.372376...`). The newer
+> E2-on-SID evaluation report uses a different calibration threshold (`0.905192`) and must not
+> be interpreted as results from that older bundle. A matching E2-on-SID model bundle will be
+> published separately once its artifacts are aligned and verified.
+
 ## Requirements
 
 - Python 3.11 or 3.12, as declared by `pyproject.toml`
